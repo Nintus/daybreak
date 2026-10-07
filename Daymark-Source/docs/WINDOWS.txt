@@ -1,0 +1,38 @@
+DAYMARK 0.2 ALPHA — WINDOWS x64
+
+1. Extract the entire ZIP to a folder. Keep every file together.
+2. Run Daymark.exe. No Node.js installation is required for this bundle.
+3. Create your first event, or open Preferences > Add sample calendar.
+
+Closing the window keeps Daymark in the system tray so reminders can run.
+Use the tray menu > Quit Daymark to stop it.
+Reminders require Daymark to be running at the reminder time. They are not
+scheduled with the operating system and cannot fire while the app is closed.
+
+This is an unsigned alpha build. No installer, auto-update, or startup service
+is included. The executable still uses the default Electron branding.
+
+Native startup could not be verified in the managed development sandbox because
+its workspace permissions blocked Electron's sandboxed renderer. The browser
+interface and 33 automated engine/desktop-logic tests were verified. Extract
+this bundle outside that workspace and test before relying on reminders.
+
+Data: %APPDATA%/Daymark/calendar.json
+Previous saved state: %APPDATA%/Daymark/calendar.json.bak
+Preferences > Save backup exports all calendars, events, tasks, and settings.
+
+Implemented: local calendar CRUD, day/week/month/agenda views, advanced repeats,
+named event timezones, single/following/series edits, occurrence skipping,
+import preview with destination selection, quick entry, search, local tasks, calendar filtering,
+dark/light themes, drag-to-move non-recurring events, basic ICS import/export,
+JSON backup/restore, tray, native notifications.
+
+Google, Outlook, and iCloud accounts are NOT connected in this alpha.
+ICS import is a one-time local copy. It does not synchronize with the provider.
+Invitations, shared calendars, and scheduling links are planned.
+RANGE exceptions, RDATE periods, and sub-daily rules are not supported yet.
+See docs/ROADMAP.md in the source project for remaining standards work.
+
+License: MIT for Daymark. Electron and bundled Chromium components have their
+own licenses, included in this directory. No telemetry or analytics.
+ICAL.js 2.2.1 is MPL 2.0; its source and license are in resources/app/src/vendor.

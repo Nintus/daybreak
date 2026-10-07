@@ -1,0 +1,45 @@
+{
+  "name": "daymark-calendar",
+  "version": "0.2.0",
+  "description": "An open source, local-first calendar for Windows",
+  "license": "MIT",
+  "author": "Daymark contributors",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "node scripts/serve.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs",
+    "dist": "electron-builder --win portable --x64",
+    "pack": "electron-builder --win --x64 --dir",
+    "bundle:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bundle-windows.ps1",
+    "vendor": "node scripts/vendor.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "org.daymark.calendar",
+    "productName": "Daymark",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "Daymark-${version}-Windows.exe"
+    }
+  },
+  "dependencies": {
+    "ical.js": "2.2.1"
+  }
+}
