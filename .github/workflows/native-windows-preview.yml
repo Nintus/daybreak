@@ -1,0 +1,62 @@
+name: Native Windows preview
+
+on:
+  push:
+    branches: [native/windows-preview]
+    paths: [Daymark-Native/**, .github/workflows/native-windows-preview.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-windows-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: 10.0.401
+      - name: Test calendar and storage on Windows
+        run: dotnet run --project Daymark-Native/Tests/Daymark.Tests.csproj -c Release
+      - name: Publish self-contained Windows app
+        run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -o staging/Daymark-Native-Windows
+      - name: Package app, source, and licenses
+        shell: pwsh
+        run: |
+          $licenses = 'staging/Daymark-Native-Windows/licenses'
+          New-Item -ItemType Directory -Force $licenses | Out-Null
+          Copy-Item Daymark-Source/LICENSE "$licenses/Daymark-LICENSE.txt"
+          foreach ($package in @('microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64')) {
+            $packageRoot = Join-Path $env:USERPROFILE ".nuget/packages/$package"
+            $version = Get-ChildItem $packageRoot -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+            if (-not $version) { throw "Missing runtime package: $package" }
+            Get-ChildItem $version.FullName -File | Where-Object { $_.Name -match 'LICENSE|NOTICES' } | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path $licenses "$package-$($_.Name)")
+            }
+          }
+          Get-ChildItem staging/Daymark-Native-Windows -Filter '*.pdb' | Remove-Item
+          Compress-Archive -Path staging/Daymark-Native-Windows -DestinationPath Daymark-Native-Windows-x64.zip
+          (Get-FileHash Daymark-Native-Windows-x64.zip -Algorithm SHA256).Hash.ToLower() + '  Daymark-Native-Windows-x64.zip' | Set-Content Daymark-Native-Windows-x64.zip.sha256
+          git archive --format=zip --output=Daymark-Native-Source.zip HEAD Daymark-Native
+          if ($LASTEXITCODE -ne 0) { throw 'Source archive failed' }
+      - name: Publish preview download
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v0.1.0-native-windows-preview'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --target $env:GITHUB_SHA --prerelease --latest=false --title 'Daymark Native Windows Preview 0.1' --notes 'Native C# and WPF preview for Windows 10/11 x64. Download Daymark-Native-Windows-x64.zip, choose Extract All, then open Daymark.exe. No browser or separate runtime installation required. Includes local non-recurring events, search, and backups. Separate data from the web app. Recurrence, reminders, sync, and web-data migration are not implemented. Windows build and 12 storage/calendar tests pass; interactive UI behavior and resource usage still require validation. Unsigned preview.'
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag Daymark-Native-Windows-x64.zip Daymark-Native-Windows-x64.zip.sha256 Daymark-Native-Source.zip --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
