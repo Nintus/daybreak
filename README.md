@@ -2,7 +2,7 @@
 
 An open-source calendar, built Windows first with C# and WPF. The portable calendar core is separate from the Windows interface. The goal is a dependable primary calendar with a native feel.
 
-The native preview supports local timed and all-day events, month and week views, an agenda, search, and JSON backups. Account sync, recurrence, reminders and timezone-aware events are planned. See the [native client guide](Daymark-Native/README.md) and [roadmap](Daymark-Native/ROADMAP.md).
+The native preview supports local timed and all-day events, month/week/day views, an agenda, search, JSON backups, and session undo/redo. Account sync, recurrence, reminders and timezone-aware events are planned. See the [native client guide](Daymark-Native/README.md) and [roadmap](Daymark-Native/ROADMAP.md).
 
 ## Downloads
 

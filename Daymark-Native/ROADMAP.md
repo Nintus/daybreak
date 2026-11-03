@@ -21,4 +21,4 @@ Do not describe local wall-clock storage as timezone-ready, dispatched reminders
 
 ## Next substantial feature
 
-The native week view now uses the shared range query, with separate all-day events, overlap columns and time-slot entry. Establish timezone-aware event semantics and migration before provider sync or recurrence. Reminder delivery needs its own Windows lifecycle design and real banner verification.
+Native day and week views now use the shared range query, with separate all-day events, overlap columns and time-slot entry. Session undo/redo covers event changes and backup restores. Establish timezone-aware event semantics and migration before provider sync or recurrence. Reminder delivery needs its own Windows lifecycle design and real banner verification.

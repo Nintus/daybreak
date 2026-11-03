@@ -58,7 +58,7 @@ jobs:
           @"
           Native Windows preview $version. Unsigned; Smart App Control may block it. SignPath acceptance and signing integration remain pending.
 
-          Download the Windows ZIP, extract the complete folder, and read START-HERE.txt. Supports local timed/all-day events, month/week views, search and backups. Sync, recurrence, reminders and timezone-aware events are not implemented.
+          Download the Windows ZIP, extract the complete folder, and read START-HERE.txt. Supports local timed/all-day events, month/week/day views, search, backups and session undo/redo. Sync, recurrence, reminders and timezone-aware events are not implemented.
 
           Source commit: $env:GITHUB_SHA
           Build: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID

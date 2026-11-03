@@ -6,6 +6,10 @@ This is the first native client, not feature parity with the JavaScript calendar
 
 Choose **Week** from **Calendar view** for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
 
+Choose **Day** for the same timeline focused on one date. Previous/Next move one day, including across month and year boundaries. Switching Month/Week/Day keeps your selected date; month navigation keeps the day number where possible and clamps it in shorter months.
+
+The **Edit** menu offers calendar **Undo** and **Redo** for event creation, editing, deletion and backup restores. Each action is saved to disk, and a failed save leaves the current document and history intact. The most recent 20 changes are available during the current session; closing the app clears this history. A new change after Undo clears Redo. Use Ctrl+Z for Undo, Ctrl+Y or Ctrl+Shift+Z for Redo when working in the calendar. Text fields keep their own text-editing undo behavior; the Edit menu explicitly acts on calendar changes. Exporting a backup does not add a history step.
+
 ## Run the prepared Windows build
 
 1. Download `Daymark-Native-Windows-x64.zip` from the task's prepared files.
@@ -56,7 +60,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 21 checks, including visible-range boundaries and week layout: overlap chains, adjacent appointments, clipped overnight segments, minimum selectable display space and Monday starts across year/leap-day boundaries. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The shared core has 31 checks covering storage, visible-range boundaries, timeline overlap layout, day/week/month navigation and bounded undo/redo. History checks cover real persisted round trips, backup restores, failed saves, snapshot isolation, redo invalidation and retention limits. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 
