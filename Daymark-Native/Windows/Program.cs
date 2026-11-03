@@ -42,6 +42,9 @@ public sealed class CalendarWindow : Window
 {
     private readonly CalendarStore store;
     private CalendarDocument document;
+    private CalendarDocument displayed;
+    private TimeZoneInfo displayZone = TimeZoneInfo.Local;
+    private bool followDeviceZone = true;
     private readonly CalendarHistory history;
     private readonly MenuItem undoItem = new() { Command = ApplicationCommands.Undo };
     private readonly MenuItem redoItem = new() { Command = ApplicationCommands.Redo };
@@ -66,6 +69,7 @@ public sealed class CalendarWindow : Window
         this.store = store;
         history = new CalendarHistory(document);
         this.document = history.Current;
+        displayed = this.document.InZone(displayZone);
         month = new DateOnly(selected.Year, selected.Month, 1);
         Title = "Daymark — Native Windows Preview" + (testCalendar ? " — Test calendar" : "");
         Width = 1100; Height = 760; MinWidth = 780; MinHeight = 560;
@@ -79,7 +83,22 @@ public sealed class CalendarWindow : Window
         var editMenu = new MenuItem { Header = "_Edit" };
         undoItem.CommandTarget = redoItem.CommandTarget = this;
         editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem); menu.Items.Add(editMenu);
-        DockPanel.SetDock(menu, Dock.Top); root.Children.Add(menu);
+        var preferences = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var displayPicker = new ComboBox { ItemsSource = new[] { new ZoneChoice("@device", "Device time zone (automatic)") }
+                .Concat(ZoneChoice.All.Where(choice => choice.Id is not null)).ToArray(),
+            DisplayMemberPath = "Label", SelectedValuePath = "Id", Width = 380, IsTextSearchEnabled = true,
+            SelectedValue = "@device", ToolTip = "Display time zone — event instants stay fixed" };
+        System.Windows.Automation.AutomationProperties.SetName(displayPicker, "Display time zone");
+        displayPicker.SelectionChanged += (_, _) => { if (displayPicker.SelectedItem is ZoneChoice { Id: not null } choice)
+            { followDeviceZone = choice.Id == "@device"; displayZone = followDeviceZone ? TimeZoneInfo.Local : CalendarTime.FindZone(choice.Id); Refresh(); } };
+        DockPanel.SetDock(displayPicker, Dock.Right); preferences.Children.Add(displayPicker);
+        preferences.Children.Add(menu); DockPanel.SetDock(preferences, Dock.Top); root.Children.Add(preferences);
+        if (this.document.Events.Any(item => !item.AllDay && item.TimeZoneId is null))
+        {
+            var notice = new TextBlock { Text = "Existing events keep their clock times. Choose a time zone in an event to anchor it.",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10), Foreground = Brushes.DimGray };
+            DockPanel.SetDock(notice, Dock.Top); root.Children.Add(notice);
+        }
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => NavigateHistory(false),
             (_, e) => { e.CanExecute = history.CanUndo; e.Handled = true; }));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, _) => NavigateHistory(true),
@@ -107,7 +126,7 @@ public sealed class CalendarWindow : Window
         backup.Children.Add(Button("Save _backup", (_, _) => Export()));
         backup.Children.Add(Button("_Restore backup", (_, _) => Restore()));
         backup.Children.Add(Button("_About", (_, _) => MessageBox.Show(this,
-            $"Daymark {BuildInfo.Version}\nNative Windows preview · C# / WPF\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nLocal events only. Sync, recurrence and reminders are not available yet.",
+            $"Daymark {BuildInfo.Version}\nNative Windows preview · C# / WPF\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nSync, recurrence and reminders are not available yet.",
             "About Daymark", MessageBoxButton.OK, MessageBoxImage.Information)));
         footer.Children.Add(status);
 
@@ -120,7 +139,7 @@ public sealed class CalendarWindow : Window
         var controls = new StackPanel { Orientation = Orientation.Horizontal };
         DockPanel.SetDock(controls, Dock.Right); navigation.Children.Add(controls);
         controls.Children.Add(Button("Previous", (_, _) => ChangePeriod(-1)));
-        controls.Children.Add(Button("_Today", (_, _) => { selected = DateOnly.FromDateTime(DateTime.Today); month = new(selected.Year, selected.Month, 1); search.Clear(); Refresh(); }));
+        controls.Children.Add(Button("_Today", (_, _) => { selected = CalendarTime.Today(displayZone); month = new(selected.Year, selected.Month, 1); search.Clear(); Refresh(); }));
         controls.Children.Add(Button("Next", (_, _) => ChangePeriod(1)));
         navigation.Children.Add(monthTitle);
         for (var i = 0; i < 7; i++) days.ColumnDefinitions.Add(new ColumnDefinition());
@@ -142,9 +161,11 @@ public sealed class CalendarWindow : Window
         var title = new FrameworkElementFactory(typeof(TextBlock)); title.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Title")); title.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold); title.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap); row.AppendChild(title);
         var time = new FrameworkElementFactory(typeof(TextBlock)); time.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding { Converter = new EventDescription() }); time.SetValue(TextBlock.FontSizeProperty, 12.0); time.SetValue(TextBlock.ForegroundProperty, Brushes.DimGray); time.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap); row.AppendChild(time);
         template.VisualTree = row; agenda.DisplayMemberPath = ""; agenda.ItemTemplate = template;
+        ScrollViewer.SetHorizontalScrollBarVisibility(agenda, ScrollBarVisibility.Disabled);
         var itemStyle = new Style(typeof(ListBoxItem)); itemStyle.Setters.Add(new Setter(HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch)); agenda.ItemContainerStyle = itemStyle;
         InputBindings.Add(new KeyBinding(new ActionCommand(NewEvent), Key.N, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(Export), Key.B, ModifierKeys.Control));
+        Activated += (_, _) => { if (followDeviceZone) { TimeZoneInfo.ClearCachedData(); displayZone = TimeZoneInfo.Local; } Refresh(); };
         Refresh();
     }
     private static Button Button(string label, RoutedEventHandler action)
@@ -160,6 +181,7 @@ public sealed class CalendarWindow : Window
     private void Refresh()
     {
         refreshing = true;
+        displayed = document.InZone(displayZone);
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
         if (viewMode != CalendarViewMode.Month)
         {
@@ -167,11 +189,11 @@ public sealed class CalendarWindow : Window
             monthTitle.Text = viewMode == CalendarViewMode.Day ? selected.ToString("ddd, MMM d, yyyy")
                 : $"{first:MMM d} – {first.AddDays(6):MMM d, yyyy}";
             monthTitle.FontSize = 20;
-            calendarContent.Content = new WeekView(document, selected,
+            calendarContent.Content = new WeekView(displayed, selected,
                 date => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); },
                 item => ShowEditor(item),
                 (date, time) => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); ShowEditor(null, time); },
-                weekOffset, viewMode == CalendarViewMode.Day);
+                weekOffset, viewMode == CalendarViewMode.Day, CalendarTime.Today(displayZone));
         }
         else
         {
@@ -179,7 +201,7 @@ public sealed class CalendarWindow : Window
             monthTitle.FontSize = 26;
             RefreshMonth();
         }
-        refreshing = false; RefreshAgenda(); status.Text = "Saved on this PC · Local-time calendar";
+        refreshing = false; RefreshAgenda(); status.Text = $"Saved on this PC · {CalendarTime.ZoneId(displayZone)}";
         undoItem.Header = history.CanUndo ? $"_Undo {history.UndoDescription}" : "_Undo";
         redoItem.Header = history.CanRedo ? $"_Redo {history.RedoDescription}" : "_Redo";
         CommandManager.InvalidateRequerySuggested();
@@ -190,12 +212,12 @@ public sealed class CalendarWindow : Window
         var labels = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
         for (var i = 0; i < 7; i++) { var label = new TextBlock { Text = labels[i], HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(4, 0, 4, 10), Foreground = Brushes.DimGray }; Grid.SetColumn(label, i); days.Children.Add(label); }
         var start = month.AddDays(-(((int)month.DayOfWeek + 6) % 7));
-        var visibleDays = document.Days(start, 42);
+        var visibleDays = displayed.Days(start, 42);
         for (var i = 0; i < 42; i++)
         {
             var date = start.AddDays(i);
             var panel = new StackPanel();
-            panel.Children.Add(new TextBlock { Text = date.Day.ToString(), FontSize = 18, FontWeight = date == DateOnly.FromDateTime(DateTime.Today) ? FontWeights.Bold : FontWeights.Normal });
+            panel.Children.Add(new TextBlock { Text = date.Day.ToString(), FontSize = 18, FontWeight = date == CalendarTime.Today(displayZone) ? FontWeights.Bold : FontWeights.Normal });
             var items = visibleDays[i];
             foreach (var item in items.Take(2)) panel.Children.Add(new TextBlock { Text = item.Title, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0) });
             if (items.Count > 2) panel.Children.Add(new TextBlock { Text = $"+{items.Count - 2} more", FontSize = 11 });
@@ -213,7 +235,7 @@ public sealed class CalendarWindow : Window
         if (refreshing) return;
         var query = search.Text.Trim();
         dayTitle.Text = query.Length == 0 ? selected.ToString("ddd, MMM d") : "Search results";
-        agenda.ItemsSource = query.Length == 0 ? document.On(selected).ToList() : document.Events
+        agenda.ItemsSource = query.Length == 0 ? displayed.On(selected).ToList() : displayed.Events
             .Where(e => (e.Title + "\n" + e.Location + "\n" + e.Notes).Contains(query, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Start).ToList();
         edit.IsEnabled = delete.IsEnabled = false;
     }
@@ -221,15 +243,16 @@ public sealed class CalendarWindow : Window
     private void Edit() { if (agenda.SelectedItem is CalendarEvent item) ShowEditor(item); }
     private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null)
     {
+        if (original is not null) original = document.Events.Single(item => item.Id == original.Id);
         var draft = original;
         while (true)
         {
-            var editor = new EventEditor(selected, draft, initialTime) { Owner = this };
+            var editor = new EventEditor(selected, draft, initialTime, displayZone) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
             var events = document.Events.Where(e => e.Id != draft.Id).ToList(); events.Add(draft);
-            if (!Save(new CalendarDocument(1, events), original is null ? "create event" : "edit event")) continue;
-            selected = DateOnly.FromDateTime(draft.Start); month = new(selected.Year, selected.Month, 1);
+            if (!Save(new CalendarDocument(2, events), original is null ? "create event" : "edit event")) continue;
+            selected = DateOnly.FromDateTime(CalendarTime.InZone(draft, displayZone).Start); month = new(selected.Year, selected.Month, 1);
             search.Clear(); Refresh(); agenda.Focus(); return;
         }
     }
@@ -258,7 +281,7 @@ public sealed class CalendarWindow : Window
     {
         if (agenda.SelectedItem is not CalendarEvent item) return;
         if (MessageBox.Show(this, $"Delete “{item.Title}”?", "Delete event", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        if (Save(new CalendarDocument(1, document.Events.Where(e => e.Id != item.Id).ToList()), "delete event")) Refresh();
+        if (Save(new CalendarDocument(2, document.Events.Where(e => e.Id != item.Id).ToList()), "delete event")) Refresh();
     }
     private void Export()
     {
@@ -269,7 +292,8 @@ public sealed class CalendarWindow : Window
         catch (Exception error) { MessageBox.Show(this, error.Message, "Backup failed", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
     private bool SameDataPath(string path) => string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path), StringComparison.OrdinalIgnoreCase)
-        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".bak"), StringComparison.OrdinalIgnoreCase);
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".bak"), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase);
     private void Restore()
     {
         var picker = new OpenFileDialog { Filter = "Daymark native backup (*.json)|*.json" };
@@ -289,7 +313,7 @@ public sealed class EventDescription : System.Windows.Data.IValueConverter
     public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
     {
         var e = (CalendarEvent)value;
-        return (e.AllDay ? $"{e.Start:d} · All day" : $"{e.Start:g} – {e.End:g}") + (string.IsNullOrWhiteSpace(e.Location) ? "" : $"\n{e.Location}");
+        return CalendarTime.Describe(e) + (string.IsNullOrWhiteSpace(e.Location) ? "" : $"\n{e.Location}");
     }
     public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
 }

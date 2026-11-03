@@ -8,9 +8,10 @@ Windows 10/11 x64 only. This preview is unsigned.
 Your native calendar is stored separately from the web app:
 %LOCALAPPDATA%\DaymarkNative\calendar.json
 The previous save is calendar.json.bak. Use Save backup for a separate copy.
+The first save after version-1 migration also preserves calendar.json.v1.bak.
 
-This first preview supports local non-recurring events, a month calendar,
-an agenda, search, and backup/restore. It does not yet support recurring
+This preview supports timezone-aware non-recurring events, month/week/day
+views, an agenda, search, undo/redo and backup/restore. It does not yet support recurring
 events, reminders, sync, or importing existing web calendar data.
 
 This package is unsigned. Read docs/CODE_SIGNING.md and docs/PRIVACY.md.

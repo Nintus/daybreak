@@ -4,7 +4,7 @@ This policy describes `Daymark-Native`, the C# / WPF client. It does not describ
 
 ## Calendar data
 
-The current client stores event titles, dates/times, locations and notes locally in `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful save is `calendar.json.bak`. The optional `--test-calendar` profile instead stores synthetic QA data in `TestCalendar` beside the executable. These files are not encrypted by Daymark; access depends on your Windows account and device protections.
+The current client stores event titles, dates/times, timezones/UTC instants for anchored timed events, locations and notes locally in `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful save is `calendar.json.bak`. Migration from version 1 also preserves `calendar.json.v1.bak`. The optional `--test-calendar` profile instead stores synthetic QA data in `TestCalendar` beside the executable. These files are not encrypted by Daymark; access depends on your Windows account and device protections.
 
 The native client currently implements no analytics, advertising, automatic crash uploads, account connection, background provider sync or automatic updater. Its current application code makes no network requests. Proposed account and sync features require a policy update before release.
 

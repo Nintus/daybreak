@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['Daymark-Native/**', 'LICENSE', 'README.md', '.github/workflows/native-windows-checks.yml']
   push:
-    branches: ['native/windows-foundation', 'native/week-view', 'native/signing-readiness', 'native/day-and-history']
+    branches: ['main', 'native/windows-foundation', 'native/week-view', 'native/signing-readiness', 'native/day-and-history', 'native/time-zones']
     paths: ['Daymark-Native/**', 'LICENSE', 'README.md', '.github/workflows/native-windows-checks.yml']
   workflow_dispatch:
 permissions:

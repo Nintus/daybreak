@@ -13,7 +13,7 @@ public sealed class WeekView : UserControl
     private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(224, 218, 249));
 
     public WeekView(CalendarDocument document, DateOnly selected, Action<DateOnly> selectDay,
-        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset, bool singleDay = false)
+        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset, bool singleDay = false, DateOnly? today = null)
     {
         var first = singleDay ? selected : WeekLayout.StartOfWeek(selected);
         var dayCount = singleDay ? 1 : 7;
@@ -34,7 +34,7 @@ public sealed class WeekView : UserControl
             var stack = new StackPanel();
             var heading = new Button { Content = date.ToString("ddd\nMMM d"), Padding = new Thickness(4, 8, 4, 8),
                 Background = date == selected ? Accent : Brushes.White,
-                FontWeight = date == DateOnly.FromDateTime(DateTime.Today) ? FontWeights.Bold : FontWeights.Normal };
+                FontWeight = date == (today ?? DateOnly.FromDateTime(DateTime.Today)) ? FontWeights.Bold : FontWeights.Normal };
             System.Windows.Automation.AutomationProperties.SetName(heading, $"Select {date:D}");
             heading.Click += (_, _) => selectDay(date); stack.Children.Add(heading);
             var allDay = new StackPanel();
@@ -96,7 +96,7 @@ public sealed class WeekView : UserControl
     private static void Add(Grid grid, UIElement element, int column) { Grid.SetColumn(element, column); grid.Children.Add(element); }
     private static Button EventButton(CalendarEvent item, Action<CalendarEvent> edit)
     {
-        var description = $"{item.Title}\n{(item.AllDay ? "All day" : $"{item.Start:g} – {item.End:g}")}\n{item.Location}";
+        var description = $"{item.Title}\n{CalendarTime.Describe(item)}\n{item.Location}";
         var button = new Button { Content = new TextBlock { Text = item.Title, TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap }, ToolTip = description, Background = Accent,
             Padding = new Thickness(3, 1, 3, 1), FontSize = 11, HorizontalContentAlignment = HorizontalAlignment.Left,
