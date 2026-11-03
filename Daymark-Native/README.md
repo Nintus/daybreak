@@ -10,6 +10,16 @@ Choose **Day** for the same timeline focused on one date. Previous/Next move one
 
 The **Edit** menu offers calendar **Undo** and **Redo** for event creation, editing, deletion and backup restores. Each action is saved to disk, and a failed save leaves the current document and history intact. The most recent 20 changes are available during the current session; closing the app clears this history. A new change after Undo clears Redo. Use Ctrl+Z for Undo, Ctrl+Y or Ctrl+Shift+Z for Redo when working in the calendar. Text fields keep their own text-editing undo behavior; the Edit menu explicitly acts on calendar changes. Exporting a backup does not add a history step.
 
+## Time zones and daylight saving
+
+New timed events default to the current display zone. The editor stores an IANA timezone ID and UTC start/end instants. Displaying the calendar in another zone moves those events to the corresponding local date and time; editing still opens the original event zone. Choose **Device time zone (automatic)** to follow the computer's zone; it is refreshed when the app is activated. **Today** and date highlighting use the display zone. The display-zone choice is per session.
+
+The editor rejects a clock time skipped during a spring-forward transition. For a repeated hour, choose its first or second occurrence separately for the start and end. Display descriptions include UTC offsets to distinguish repeated times. Changing an event's zone in the editor keeps its entered clock values and changes its instants; changing the calendar's display zone never changes stored events.
+
+All-day events remain date ranges in every zone. **Floating** timed events keep their clock values everywhere. Existing version-1 events migrate as floating events because their original timezone was never recorded. Set a zone explicitly in the editor to anchor one. Migration does not rewrite a file merely by loading it. The first successful save writes version 2 and preserves the original in `calendar.json.v1.bak`; this migration backup is not rotated. The ordinary previous-save `.bak` continues separately. Export a backup before returning to an older native preview: older versions reject version-2 calendars and cannot read newly zoned events.
+
+The 24-hour timeline uses clock-time rows; repeated-hour occurrences share that part of the grid and are distinguished by offsets in descriptions. It is not a 25-row elapsed-hours view. UTC instants are authoritative for anchored non-recurring events; stored clock fields are snapshots. OS timezone data supplies conversion rules. Recurrence and provider sync require further work.
+
 ## Run the prepared Windows build
 
 1. Download `Daymark-Native-Windows-x64.zip` from the task's prepared files.
@@ -31,7 +41,7 @@ Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous succes
 
 Closing the window exits the app. It does not install a startup service, remain in the tray, poll providers, or run reminder timers. A single-instance guard prevents ordinary duplicate launches in the same Windows session.
 
-This preview uses device-local wall-clock dates and times. Recurrence, timezone-aware events, reminders, tasks, ICS import/export, provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Recurrence, reminders, tasks, ICS import/export, provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
 
 All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, and Escape to cancel the editor are available.
 
@@ -60,7 +70,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 31 checks covering storage, visible-range boundaries, timeline overlap layout, day/week/month navigation and bounded undo/redo. History checks cover real persisted round trips, backup restores, failed saves, snapshot isolation, redo invalidation and retention limits. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The shared core has 47 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets and legacy migration. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 

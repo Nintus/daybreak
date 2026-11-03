@@ -17,8 +17,8 @@ GitHub is the source of truth for cloud and local development. Work on branches 
 5. **Distribution:** signed installer, tested automatic updates and rollback, crash diagnostics with user control, migration compatibility and release checklist.
 6. **Other platforms:** select native UI per platform when development starts. iOS and Apple Watch need Apple development/signing tools and hardware access. Android, Linux and possibly macOS follow demonstrated Windows quality and available capacity. Reassess portable implementation choices then.
 
-Do not describe local wall-clock storage as timezone-ready, dispatched reminders as observed Windows notifications, or the Electron app as the native WPF client. Feature parity with Fantastical is a long-term product target, not the current preview's capability.
+Do not describe legacy floating events as anchored instants, dispatched reminders as observed Windows notifications, or the Electron app as the native WPF client. Feature parity with Fantastical is a long-term product target, not the current preview's capability.
 
 ## Next substantial feature
 
-Native day and week views now use the shared range query, with separate all-day events, overlap columns and time-slot entry. Session undo/redo covers event changes and backup restores. Establish timezone-aware event semantics and migration before provider sync or recurrence. Reminder delivery needs its own Windows lifecycle design and real banner verification.
+Native day/week views and session undo/redo are implemented. The timezone foundation stores non-recurring timed events as instants with a source zone, handles DST gaps/folds explicitly, and preserves legacy floating times through version-2 migration. Next, implement recurrence and exceptions against these semantics with provider-compatible fixtures. Reminder delivery needs its own Windows lifecycle design and real banner verification.

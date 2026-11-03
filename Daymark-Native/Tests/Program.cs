@@ -16,11 +16,11 @@ try
     Test("save keeps previous-state backup", () => { store.Save(new(1, [changed])); Check(store.Load().Events.Single() == changed); Check(CalendarStore.Read(store.Path + ".bak").Events.Single() == item); });
     Test("invalid save leaves existing data intact", () => { Reject(() => store.Save(new(1, [changed with { End = changed.Start }]))); Check(store.Load().Events.Single() == changed); });
     Test("duplicate IDs are rejected", () => Reject(() => new CalendarDocument(1, [item, item]).Validate()));
-    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(2, [item]).Validate()));
+    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(3, [item]).Validate()));
     Test("midnight boundary excludes previous day's ending event", () => { var midnight = item with { End = new DateTime(2026, 10, 9) }; Check(new CalendarDocument(1, [midnight]).On(new DateOnly(2026, 10, 9)).Count() == 0); });
     Test("multi-day all-day event uses exclusive end", () => { var days = item with { Start = new DateTime(2026, 10, 8), End = new DateTime(2026, 10, 10), AllDay = true }; days.Validate(); var doc = new CalendarDocument(1, [days]); Check(doc.On(new(2026, 10, 8)).Count() == 1 && doc.On(new(2026, 10, 9)).Count() == 1 && doc.On(new(2026, 10, 10)).Count() == 0); });
     Test("all-day event rejects non-midnight times", () => Reject(() => (item with { AllDay = true }).Validate()));
-    Test("UTC values are rejected by local-time model", () => Reject(() => (item with { Start = DateTime.SpecifyKind(item.Start, DateTimeKind.Utc) }).Validate()));
+    Test("wall-clock fields reject UTC kinds", () => Reject(() => (item with { Start = DateTime.SpecifyKind(item.Start, DateTimeKind.Utc) }).Validate()));
     Test("visible days match individual day queries across boundaries and ordering", () =>
     {
         var first = new DateOnly(2026, 9, 28);
@@ -178,6 +178,127 @@ try
     {
         Check(CalendarNavigation.Move(new(2, 1, 1), CalendarViewMode.Day, -1) == new DateOnly(2, 1, 1));
         Check(CalendarNavigation.Move(new(9998, 12, 31), CalendarViewMode.Month, 1) == new DateOnly(9998, 12, 31));
+    });
+    var newYork = CalendarTime.FindZone("America/New_York");
+    var tokyo = CalendarTime.FindZone("Asia/Tokyo");
+    CalendarEvent Clock(DateTime from, DateTime to) => item with { Start = from, End = to };
+    Test("new zoned events use daylight-saving rules in winter and summer", () =>
+    {
+        var winter = CalendarTime.Anchor(Clock(new(2026, 1, 15, 9, 0, 0), new(2026, 1, 15, 10, 0, 0)), newYork);
+        var summer = CalendarTime.Anchor(Clock(new(2026, 7, 15, 9, 0, 0), new(2026, 7, 15, 10, 0, 0)), newYork);
+        Check(winter.StartUtc == new DateTime(2026, 1, 15, 14, 0, 0, DateTimeKind.Utc));
+        Check(summer.StartUtc == new DateTime(2026, 7, 15, 13, 0, 0, DateTimeKind.Utc));
+    });
+    Test("spring-forward nonexistent times are rejected", () =>
+        Reject(() => CalendarTime.Anchor(Clock(new(2026, 3, 8, 2, 30, 0), new(2026, 3, 8, 3, 30, 0)), newYork)));
+    Test("repeated hour requires a choice and produces distinct instants", () =>
+    {
+        var wall = new DateTime(2026, 11, 1, 1, 30, 0);
+        Reject(() => CalendarTime.Resolve(wall, newYork));
+        var early = CalendarTime.Resolve(wall, newYork, RepeatedTimeChoice.Earlier);
+        var late = CalendarTime.Resolve(wall, newYork, RepeatedTimeChoice.Later);
+        Check(early == new DateTime(2026, 11, 1, 5, 30, 0, DateTimeKind.Utc) && late - early == TimeSpan.FromHours(1));
+        Check(CalendarTime.ChoiceFor(early, newYork) == RepeatedTimeChoice.Earlier && CalendarTime.ChoiceFor(late, newYork) == RepeatedTimeChoice.Later);
+    });
+    Test("fall-back events can end earlier on the clock but later in real time", () =>
+    {
+        var wall = Clock(new(2026, 11, 1, 1, 45, 0), new(2026, 11, 1, 1, 15, 0));
+        var anchored = CalendarTime.Anchor(wall, newYork, RepeatedTimeChoice.Earlier, RepeatedTimeChoice.Later);
+        Check(anchored.EndUtc - anchored.StartUtc == TimeSpan.FromMinutes(30));
+        Reject(() => CalendarTime.Anchor(wall, newYork, RepeatedTimeChoice.Earlier, RepeatedTimeChoice.Earlier));
+        var projected = CalendarTime.InZone(anchored, newYork);
+        Check(new CalendarDocument(2, [projected]).On(new(2026, 11, 1)).Count() == 1);
+        Check(WeekLayout.TimedDay([projected], new(2026, 11, 1)).Count == 1);
+    });
+    Test("half-hour daylight-saving transitions are supported", () =>
+    {
+        var lordHowe = CalendarTime.FindZone("Australia/Lord_Howe");
+        var wall = new DateTime(2026, 4, 5, 1, 45, 0);
+        Check(CalendarTime.Resolve(wall, lordHowe, RepeatedTimeChoice.Later) - CalendarTime.Resolve(wall, lordHowe, RepeatedTimeChoice.Earlier) == TimeSpan.FromMinutes(30));
+        Reject(() => CalendarTime.Resolve(new(2026, 10, 4, 2, 15, 0), lordHowe));
+    });
+    Test("quarter-hour offsets retain precise instants", () =>
+    {
+        var nepal = CalendarTime.Anchor(Clock(new(2026, 11, 3, 9, 0, 0), new(2026, 11, 3, 10, 0, 0)), CalendarTime.FindZone("Asia/Kathmandu"));
+        Check(nepal.StartUtc == new DateTime(2026, 11, 3, 3, 15, 0, DateTimeKind.Utc));
+        Check(CalendarTime.InZone(nepal, tokyo).Start == new DateTime(2026, 11, 3, 12, 15, 0));
+    });
+    var travel = CalendarTime.Anchor(Clock(new(2026, 11, 3, 18, 0, 0), new(2026, 11, 3, 19, 0, 0)), newYork);
+    Test("changing display zone moves timed events across date boundaries", () =>
+    {
+        var shown = new CalendarDocument(2, [travel]).InZone(tokyo);
+        Check(shown.Events.Single().Start == new DateTime(2026, 11, 4, 8, 0, 0));
+        Check(shown.On(new(2026, 11, 3)).Count() == 0 && shown.On(new(2026, 11, 4)).Count() == 1);
+        Check(shown.Days(new(2026, 11, 3), 2)[1].Count == 1 && travel.TimeZoneId == "America/New_York");
+    });
+    Test("Today follows the display zone across the date line", () =>
+    {
+        var instant = new DateTime(2026, 11, 3, 23, 30, 0, DateTimeKind.Utc);
+        Check(CalendarTime.Today(tokyo, instant) == new DateOnly(2026, 11, 4));
+        Check(CalendarTime.Today(newYork, instant) == new DateOnly(2026, 11, 3));
+    });
+    Test("all-day and floating events keep dates and clock times in every display zone", () =>
+    {
+        var allDay = item with { Start = item.Start.Date, End = item.Start.Date.AddDays(1), AllDay = true };
+        foreach (var zone in new[] { tokyo, newYork, TimeZoneInfo.Utc })
+        {
+            Check(CalendarTime.InZone(allDay, zone) == allDay && CalendarTime.InZone(item, zone) == item);
+        }
+        Reject(() => CalendarTime.Anchor(allDay, tokyo));
+    });
+    Test("zoned backup round trip retains instants and source zone", () =>
+    {
+        store.Save(new(2, [travel])); var loaded = store.Load().Events.Single();
+        Check(loaded == travel && loaded.StartUtc!.Value.Kind == DateTimeKind.Utc);
+        Check(CalendarTime.InZone(CalendarTime.InZone(loaded, tokyo), newYork).Start == travel.Start);
+    });
+    Test("legacy load upgrades in memory without rewriting and preserves original backup on save", () =>
+    {
+        var legacy = System.Text.Json.JsonSerializer.Serialize(new CalendarDocument(1, [item]), new System.Text.Json.JsonSerializerOptions
+            { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+        File.WriteAllText(store.Path, legacy);
+        var loaded = store.Load();
+        Check(loaded.Version == 2 && loaded.Events.Single() == item && File.ReadAllText(store.Path) == legacy);
+        store.Save(loaded);
+        Check(File.ReadAllText(store.Path + ".bak") == legacy && store.Load().Version == 2);
+        Check(File.ReadAllText(store.Path + ".v1.bak") == legacy);
+        store.Save(new(2, [changed])); Check(File.ReadAllText(store.Path + ".v1.bak") == legacy);
+    });
+    Test("legacy gaps and repeated hours remain floating without guessed offsets", () =>
+    {
+        var legacyGap = Clock(new(2026, 3, 8, 2, 15, 0), new(2026, 3, 8, 2, 45, 0));
+        store.Save(new(1, [legacyGap]));
+        Check(store.Load().Events.Single() == legacyGap && store.Load().Events.Single().StartUtc is null);
+    });
+    Test("unknown zones and malformed instant metadata are rejected", () =>
+    {
+        Reject(() => (travel with { TimeZoneId = "Invalid/Nowhere" }).Validate());
+        Reject(() => (travel with { StartUtc = null }).Validate());
+        Reject(() => (travel with { EndUtc = travel.StartUtc }).Validate());
+        Reject(() => (travel with { StartUtc = DateTime.SpecifyKind(travel.StartUtc!.Value, DateTimeKind.Unspecified) }).Validate());
+        Reject(() => (travel with { TimeZoneId = null }).Validate());
+        Reject(() => new CalendarDocument(1, [travel]).Validate());
+    });
+    Test("undo and redo retain timezone metadata and absolute instants", () =>
+    {
+        var history = new CalendarHistory(new(2, [item])); history.Commit(new(2, [travel]), "anchor", store.Save);
+        Check(history.Undo(store.Save) && store.Load().Events.Single() == item);
+        Check(history.Redo(store.Save) && store.Load().Events.Single() == travel);
+    });
+    Test("editing unchanged displayed minutes preserves hidden seconds and instants", () =>
+    {
+        var prior = Clock(new(2026, 11, 3, 9, 0, 30), new(2026, 11, 3, 9, 0, 45));
+        var edited = prior with { Start = CalendarTime.KeepSubminutePrecision(new(2026, 11, 3, 9, 0, 0), prior.Start),
+            End = CalendarTime.KeepSubminutePrecision(new(2026, 11, 3, 9, 0, 0), prior.End) };
+        Check(CalendarTime.Anchor(edited, newYork).EndUtc - CalendarTime.Anchor(edited, newYork).StartUtc == TimeSpan.FromSeconds(15));
+        Check(CalendarTime.KeepSubminutePrecision(new(2026, 11, 3, 10, 0, 0), prior.Start) == new DateTime(2026, 11, 3, 10, 0, 0));
+    });
+    Test("oversized saves cannot create a calendar that fails the read limit", () =>
+    {
+        store.Save(new(2, [item]));
+        var large = Enumerable.Range(0, 2100).Select(_ => item with { Id = Guid.NewGuid(), Notes = new string('x', 10000) }).ToList();
+        Reject(() => store.Save(new(2, large)));
+        Check(store.Load().Events.Single() == item);
     });
     Test("corrupt file is not overwritten on load", () => { File.WriteAllText(store.Path, "bad json"); try { store.Load(); throw new Exception("Expected failure"); } catch (System.Text.Json.JsonException) { } Check(File.ReadAllText(store.Path) == "bad json"); });
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
