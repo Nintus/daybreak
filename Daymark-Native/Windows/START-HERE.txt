@@ -13,5 +13,10 @@ This first preview supports local non-recurring events, a month calendar,
 an agenda, search, and backup/restore. It does not yet support recurring
 events, reminders, sync, or importing existing web calendar data.
 
-The build and shared calendar/storage tests passed in the cloud.
-The actual Windows interface and resource usage still need testing.
+This package is unsigned. Read docs/CODE_SIGNING.md and docs/PRIVACY.md.
+SignPath acceptance and signing integration are pending.
+See README.md and the QA records for verification results and limitations.
+
+To remove this portable preview, close it and remove its extracted folder.
+Your personal calendar remains at the data location above. Back it up before
+removing it separately. TestCalendar data, if present, lives in the app folder.

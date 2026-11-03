@@ -7,12 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Daymark</AssemblyName>
-    <Version>0.3.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../Core/Daymark.Core.csproj" /></ItemGroup>
   <ItemGroup>
     <None Update="START-HERE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="../README.md" Link="README.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../ROADMAP.md" Link="ROADMAP.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../../LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../docs/*.md" Link="docs/%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
