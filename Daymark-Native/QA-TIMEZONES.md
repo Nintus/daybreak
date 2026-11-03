@@ -17,7 +17,7 @@ All 47 core/storage checks pass. Timezone coverage includes winter/summer conver
 - Changed the draft to November 1, 01:30–01:45. Separate start/end occurrence pickers appeared. Save without a choice was rejected.
 - Selected the first start occurrence and second end occurrence, then saved. The file contained 05:30Z–06:45Z, a 75-minute elapsed interval. Tokyo displayed 14:30–15:45.
 - Used Ctrl+Z to restore the prior travel event. A direct UTC read from JSON confirmed its original 23:00Z start and America/New_York source zone. An initial diagnostic reparsed a timestamp through local time; the corrected check read UTC directly.
-- Left the app in Day view on November 4 in Tokyo, showing the restored travel event and unchanged all-day event. The screenshot is delivered separately. Agenda descriptions wrap instead of requiring horizontal scrolling.
+- Captured Day view on November 4 in Tokyo, showing the restored travel event and unchanged all-day event. The screenshot is delivered separately. Agenda descriptions wrap instead of requiring horizontal scrolling.
 
 Only synthetic local QA data was used. No Windows timezone or security settings were changed.
 
@@ -28,3 +28,5 @@ The automatic device-zone option refreshes when the window is activated; changin
 Legacy events remain floating until explicitly anchored. Version-2 data is not readable by older previews. Loading alone does not rewrite the file; first save retains `.v1.bak` separately from the rotating `.bak`. New anchored events use stored UTC instants as their authority. Signing remains pending despite this successful local launch.
 
 Final automated guards also cover preserving subminute precision when displayed minute fields are unchanged, and rejecting oversized saves before an unreadable file can be produced. These two edge cases were verified by core tests; the UI scenarios above used minute-aligned events.
+
+After the final precision/size guards, Release publish and package verification passed again. The final build reopened the migrated version-2 QA calendar successfully in the automatic device zone, showing the anchored event at 17:00 in Chicago and legacy events at their original clock times.
