@@ -41,6 +41,24 @@ public sealed record CalendarDocument(int Version, List<CalendarEvent> Events)
         return Events.Where(e => e.Start < end && e.End > start)
             .OrderByDescending(e => e.AllDay).ThenBy(e => e.Start).ThenBy(e => e.Title);
     }
+
+    // Scan the calendar once, then distribute overlapping events into the visible days.
+    public IReadOnlyList<IReadOnlyList<CalendarEvent>> Days(DateOnly first, int count)
+    {
+        if (count < 1 || count > 366 || first.DayNumber > DateOnly.MaxValue.DayNumber - count)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        var start = first.ToDateTime(TimeOnly.MinValue);
+        var end = start.AddDays(count);
+        var days = Enumerable.Range(0, count).Select(_ => new List<CalendarEvent>()).ToArray();
+        foreach (var item in Events.Where(e => e.Start < end && e.End > start)
+                     .OrderByDescending(e => e.AllDay).ThenBy(e => e.Start).ThenBy(e => e.Title))
+        {
+            var from = Math.Max(0, DateOnly.FromDateTime(item.Start).DayNumber - first.DayNumber);
+            var through = Math.Min(count - 1, DateOnly.FromDateTime(item.End.AddTicks(-1)).DayNumber - first.DayNumber);
+            for (var i = from; i <= through; i++) days[i].Add(item);
+        }
+        return days;
+    }
 }
 
 public sealed class CalendarStore(string path)

@@ -11,18 +11,25 @@ namespace Daymark.Windows;
 public static class Program
 {
     [STAThread]
-    public static void Main()
+    public static void Main(string[] args)
     {
-        using var instance = new Mutex(true, "Local\\Daymark.Native.Calendar", out var firstInstance);
+        var testCalendar = args.Length == 1 && args[0] == "--test-calendar";
+        if (args.Length > 0 && !testCalendar)
+        {
+            MessageBox.Show("Supported option: --test-calendar (opens a separate disposable calendar).", "Daymark");
+            return;
+        }
+        using var instance = new Mutex(true, testCalendar ? "Local\\Daymark.Native.Calendar.Test" : "Local\\Daymark.Native.Calendar", out var firstInstance);
         if (!firstInstance)
         {
             MessageBox.Show("Daymark is already running. Use its existing window.", "Daymark");
             return;
         }
         var app = new Application();
-        var store = new CalendarStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DaymarkNative", "calendar.json"));
-        try { app.Run(new CalendarWindow(store, store.Load())); }
+        var dataDirectory = testCalendar ? Path.Combine(AppContext.BaseDirectory, "TestCalendar")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DaymarkNative");
+        var store = new CalendarStore(Path.Combine(dataDirectory, "calendar.json"));
+        try { app.Run(new CalendarWindow(store, store.Load(), testCalendar)); }
         catch (Exception error)
         {
             MessageBox.Show($"Daymark could not start. Your calendar has not been replaced.\n\n{error.Message}\n\nData: {store.Path}\nPrevious save: {store.Path}.bak",
@@ -47,12 +54,12 @@ public sealed class CalendarWindow : Window
     private readonly Button delete;
     private bool refreshing;
 
-    public CalendarWindow(CalendarStore store, CalendarDocument document)
+    public CalendarWindow(CalendarStore store, CalendarDocument document, bool testCalendar = false)
     {
         this.store = store;
         this.document = document;
         month = new DateOnly(selected.Year, selected.Month, 1);
-        Title = "Daymark — Native Windows Preview";
+        Title = "Daymark — Native Windows Preview" + (testCalendar ? " — Test calendar" : "");
         Width = 1100; Height = 760; MinWidth = 780; MinHeight = 560;
         Background = new SolidColorBrush(Color.FromRgb(248, 247, 244));
         FontFamily = new FontFamily("Segoe UI"); FontSize = 14;
@@ -76,6 +83,9 @@ public sealed class CalendarWindow : Window
         DockPanel.SetDock(backup, Dock.Right); footer.Children.Add(backup);
         backup.Children.Add(Button("Save _backup", (_, _) => Export()));
         backup.Children.Add(Button("_Restore backup", (_, _) => Restore()));
+        backup.Children.Add(Button("_About", (_, _) => MessageBox.Show(this,
+            $"Daymark {BuildInfo.Version}\nNative Windows preview · C# / WPF\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nLocal events only. Sync, recurrence and reminders are not available yet.",
+            "About Daymark", MessageBoxButton.OK, MessageBoxImage.Information)));
         footer.Children.Add(status);
 
         var body = new Grid();
@@ -127,12 +137,13 @@ public sealed class CalendarWindow : Window
         var labels = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
         for (var i = 0; i < 7; i++) { var label = new TextBlock { Text = labels[i], HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(4, 0, 4, 10), Foreground = Brushes.DimGray }; Grid.SetColumn(label, i); days.Children.Add(label); }
         var start = month.AddDays(-(((int)month.DayOfWeek + 6) % 7));
+        var visibleDays = document.Days(start, 42);
         for (var i = 0; i < 42; i++)
         {
             var date = start.AddDays(i);
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = date.Day.ToString(), FontSize = 18, FontWeight = date == DateOnly.FromDateTime(DateTime.Today) ? FontWeights.Bold : FontWeights.Normal });
-            var items = document.On(date).ToList();
+            var items = visibleDays[i];
             foreach (var item in items.Take(2)) panel.Children.Add(new TextBlock { Text = item.Title, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 4, 0, 0) });
             if (items.Count > 2) panel.Children.Add(new TextBlock { Text = $"+{items.Count - 2} more", FontSize = 11 });
             var button = new Button { Content = panel, Padding = new Thickness(8), Margin = new Thickness(2), HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Top,
