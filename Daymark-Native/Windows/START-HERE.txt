@@ -1,0 +1,17 @@
+DAYMARK NATIVE WINDOWS PREVIEW
+
+Extract the complete ZIP, then double-click Daymark.exe.
+Keep all of the supplied DLLs and other files beside the EXE.
+No browser, Node.js, pnpm, or separate .NET installation is required.
+Windows 10/11 x64 only. This preview is unsigned.
+
+Your native calendar is stored separately from the web app:
+%LOCALAPPDATA%\DaymarkNative\calendar.json
+The previous save is calendar.json.bak. Use Save backup for a separate copy.
+
+This first preview supports local non-recurring events, a month calendar,
+an agenda, search, and backup/restore. It does not yet support recurring
+events, reminders, sync, or importing existing web calendar data.
+
+The build and shared calendar/storage tests passed in the cloud.
+The actual Windows interface and resource usage still need testing.
