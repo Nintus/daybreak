@@ -1,0 +1,46 @@
+name: Native Windows checks
+on:
+  pull_request:
+    paths: ['Daymark-Native/**', '.github/workflows/native-windows-checks.yml']
+  push:
+    branches: ['native/windows-foundation']
+    paths: ['Daymark-Native/**', '.github/workflows/native-windows-checks.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test calendar core
+        run: dotnet run --project Daymark-Native/Tests/Daymark.Tests.csproj -c Release
+      - name: Publish identifiable Windows build
+        run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -p:SourceRevisionId=${{ github.sha }} -o artifacts/windows
+      - name: Save build identity
+        shell: pwsh
+        run: |
+          @{ commit = '${{ github.sha }}'; run = '${{ github.run_id }}'; version = '0.2.0' } | ConvertTo-Json | Set-Content artifacts/windows/build.json
+      - name: Include application and runtime licenses
+        shell: pwsh
+        run: |
+          $licenses = 'artifacts/windows/licenses'
+          New-Item -ItemType Directory -Force $licenses | Out-Null
+          Copy-Item Daymark-Source/LICENSE "$licenses/Daymark-LICENSE.txt"
+          foreach ($package in @('microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64')) {
+            $packageRoot = Join-Path $env:USERPROFILE ".nuget/packages/$package"
+            $version = Get-ChildItem $packageRoot -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+            if (-not $version) { throw "Missing runtime package: $package" }
+            Get-ChildItem $version.FullName -File | Where-Object { $_.Name -match 'LICENSE|NOTICES' } | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path $licenses "$package-$($_.Name)")
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Daymark-Windows-${{ github.sha }}
+          path: artifacts/windows/
+          retention-days: 14

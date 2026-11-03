@@ -27,6 +27,12 @@ All-day event end dates are exclusive: to include Friday and Saturday, set the s
 
 ## Build on Windows
 
+The active direction is **Windows first**, with portable calendar logic and platform-specific interfaces. See [the roadmap](ROADMAP.md) for the implementation order and cloud/local handoff rules.
+
+**About** shows the version, source commit and data location. Automated checks publish a commit-named Windows artifact without replacing a public release. Build artifacts are retained for 14 days.
+
+For manual QA, launch `Daymark.exe --test-calendar`. Its title explicitly says **Test calendar**, and its data is stored in `TestCalendar/calendar.json` beside the executable. It has a separate single-instance guard, so your personal calendar can stay open. The test folder must be writable; test data persists between launches. Do not distribute that folder with app packages.
+
 Install the **.NET 10 SDK** from Microsoft's official .NET download page, then open a terminal in `Daymark-Native`:
 
 ```powershell
@@ -44,9 +50,9 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core's 12 checks passed on Linux: event round-trips; previous-state backup; rejected saves preserving existing data; duplicate IDs; unsupported versions; midnight overlap boundaries; exclusive all-day ends; local-time validation; backup restore; and preserving corrupt data on load. The Windows Release build and self-contained x64 publish completed successfully.
+The shared core has 14 checks, including visible-range results matching individual day queries across midnight, multi-day events, ordering and the 42-day month boundary. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
-The WPF UI cannot run in this Linux workspace. Before relying on the app, check these on Windows with disposable events:
+Before relying on the app, check these on Windows with disposable events using the test calendar:
 
 1. Launch; create a timed event and a two-day all-day event; switch months and select their dates.
 2. Edit title, location, notes and time; search by each field; delete with cancel and then confirmation.
