@@ -95,6 +95,90 @@ try
         foreach (var b in slots.Where(b => b.Event.Id != a.Event.Id && b.StartMinute < a.EndMinute && b.EndMinute > a.StartMinute))
             Check(a.Column != b.Column);
     });
+    Test("create edit delete undo and redo persist complete event data", () =>
+    {
+        var history = new CalendarHistory(CalendarDocument.Empty());
+        history.Commit(new(1, [item]), "create", store.Save);
+        history.Commit(new(1, [changed]), "edit", store.Save);
+        history.Commit(CalendarDocument.Empty(), "delete", store.Save);
+        Check(history.UndoDescription == "delete" && history.Undo(store.Save));
+        Check(store.Load().Events.Single() == changed);
+        Check(history.Undo(store.Save) && store.Load().Events.Single() == item);
+        Check(history.Undo(store.Save) && store.Load().Events.Count == 0 && !history.CanUndo);
+        Check(history.Redo(store.Save) && store.Load().Events.Single() == item);
+        Check(history.Redo(store.Save) && store.Load().Events.Single() == changed);
+        Check(history.Redo(store.Save) && store.Load().Events.Count == 0 && !history.CanRedo);
+    });
+    Test("backup restore can be undone and redone as a whole calendar", () =>
+    {
+        var history = new CalendarHistory(new(1, [item]));
+        var incoming = new CalendarDocument(1, [changed, item with { Id = Guid.NewGuid() }]);
+        history.Commit(incoming, "restore backup", store.Save);
+        Check(history.Undo(store.Save) && store.Load().Events.SequenceEqual(new[] { item }));
+        Check(history.Redo(store.Save) && store.Load().Events.SequenceEqual(incoming.Events));
+    });
+    Test("failed commit leaves current data and redo available", () =>
+    {
+        var history = new CalendarHistory(new(1, [item]));
+        history.Commit(new(1, [changed]), "edit", store.Save); history.Undo(store.Save);
+        try { history.Commit(CalendarDocument.Empty(), "delete", _ => throw new IOException("Disk full")); throw new Exception("Expected failure"); }
+        catch (IOException) { }
+        Check(history.Current.Events.Single() == item && history.CanRedo && !history.CanUndo);
+        Check(store.Load().Events.Single() == item && history.Redo(store.Save));
+    });
+    Test("failed undo and redo do not consume history", () =>
+    {
+        var history = new CalendarHistory(new(1, [item]));
+        history.Commit(new(1, [changed]), "edit", store.Save);
+        try { history.Undo(_ => throw new IOException("Disk full")); throw new Exception("Expected failure"); } catch (IOException) { }
+        Check(history.Current.Events.Single() == changed && history.CanUndo && !history.CanRedo);
+        Check(history.Undo(store.Save));
+        try { history.Redo(_ => throw new IOException("Disk full")); throw new Exception("Expected failure"); } catch (IOException) { }
+        Check(history.Current.Events.Single() == item && history.CanRedo && !history.CanUndo);
+        Check(history.Redo(store.Save) && store.Load().Events.Single() == changed);
+    });
+    Test("history snapshots cannot be changed through exposed lists", () =>
+    {
+        var initial = new CalendarDocument(1, [item]); var history = new CalendarHistory(initial);
+        initial.Events.Clear(); history.Current.Events.Clear();
+        var next = new CalendarDocument(1, [changed]); history.Commit(next, "edit", _ => { }); next.Events.Clear();
+        Check(history.Current.Events.Single() == changed);
+        Check(history.Undo(_ => { }) && history.Current.Events.Single() == item);
+    });
+    Test("new edits clear redo but no-op saves preserve it", () =>
+    {
+        var history = new CalendarHistory(new(1, [item]));
+        history.Commit(new(1, [changed]), "edit", _ => { }); history.Undo(_ => { });
+        history.Commit(new(1, [item]), "unchanged", _ => throw new Exception("No-op must not write"));
+        Check(history.CanRedo);
+        history.Commit(CalendarDocument.Empty(), "delete", _ => { }); Check(!history.CanRedo);
+    });
+    Test("history retains only the configured most recent changes", () =>
+    {
+        var history = new CalendarHistory(CalendarDocument.Empty(), 3);
+        for (var i = 1; i <= 5; i++) history.Commit(new(1, [item with { Title = i.ToString() }]), "edit", _ => { });
+        var undos = 0; while (history.Undo(_ => { })) undos++;
+        Check(undos == 3 && history.Current.Events.Single().Title == "2");
+    });
+    Test("invalid changes are rejected before persistence or history changes", () =>
+    {
+        var history = new CalendarHistory(new(1, [item]));
+        Reject(() => history.Commit(new(1, [item with { End = item.Start }]), "invalid", _ => throw new Exception("Must not write")));
+        Check(history.Current.Events.Single() == item && !history.CanUndo && !history.CanRedo);
+    });
+    Test("day week and month navigation preserve selection and cross date boundaries", () =>
+    {
+        Check(CalendarNavigation.Move(new(2024, 2, 28), CalendarViewMode.Day, 1) == new DateOnly(2024, 2, 29));
+        Check(CalendarNavigation.Move(new(2026, 12, 31), CalendarViewMode.Day, 1) == new DateOnly(2027, 1, 1));
+        Check(CalendarNavigation.Move(new(2026, 12, 30), CalendarViewMode.Week, 1) == new DateOnly(2027, 1, 6));
+        Check(CalendarNavigation.Move(new(2026, 1, 31), CalendarViewMode.Month, 1) == new DateOnly(2026, 2, 28));
+        Check(CalendarNavigation.Move(new(2026, 11, 3), CalendarViewMode.Month, -1) == new DateOnly(2026, 10, 3));
+    });
+    Test("navigation stops at supported calendar limits", () =>
+    {
+        Check(CalendarNavigation.Move(new(2, 1, 1), CalendarViewMode.Day, -1) == new DateOnly(2, 1, 1));
+        Check(CalendarNavigation.Move(new(9998, 12, 31), CalendarViewMode.Month, 1) == new DateOnly(9998, 12, 31));
+    });
     Test("corrupt file is not overwritten on load", () => { File.WriteAllText(store.Path, "bad json"); try { store.Load(); throw new Exception("Expected failure"); } catch (System.Text.Json.JsonException) { } Check(File.ReadAllText(store.Path) == "bad json"); });
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
     Console.WriteLine($"{count} tests passed");

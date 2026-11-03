@@ -42,12 +42,15 @@ public sealed class CalendarWindow : Window
 {
     private readonly CalendarStore store;
     private CalendarDocument document;
+    private readonly CalendarHistory history;
+    private readonly MenuItem undoItem = new() { Command = ApplicationCommands.Undo };
+    private readonly MenuItem redoItem = new() { Command = ApplicationCommands.Redo };
     private DateOnly selected = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly month;
     private readonly Grid days = new();
     private readonly ContentControl calendarContent = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch,
         VerticalContentAlignment = VerticalAlignment.Stretch };
-    private bool weekMode;
+    private CalendarViewMode viewMode;
     private double weekOffset = 8 * 60;
     private readonly TextBlock monthTitle = new() { FontSize = 26, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock dayTitle = new() { FontSize = 20, Margin = new Thickness(0, 0, 0, 16) };
@@ -61,7 +64,8 @@ public sealed class CalendarWindow : Window
     public CalendarWindow(CalendarStore store, CalendarDocument document, bool testCalendar = false)
     {
         this.store = store;
-        this.document = document;
+        history = new CalendarHistory(document);
+        this.document = history.Current;
         month = new DateOnly(selected.Year, selected.Month, 1);
         Title = "Daymark — Native Windows Preview" + (testCalendar ? " — Test calendar" : "");
         Width = 1100; Height = 760; MinWidth = 780; MinHeight = 560;
@@ -71,14 +75,24 @@ public sealed class CalendarWindow : Window
 
         var root = new DockPanel { Margin = new Thickness(24) };
         Content = root;
+        var menu = new Menu { Background = Brushes.Transparent, Margin = new Thickness(0, 0, 0, 8) };
+        var editMenu = new MenuItem { Header = "_Edit" };
+        undoItem.CommandTarget = redoItem.CommandTarget = this;
+        editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem); menu.Items.Add(editMenu);
+        DockPanel.SetDock(menu, Dock.Top); root.Children.Add(menu);
+        CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => NavigateHistory(false),
+            (_, e) => { e.CanExecute = history.CanUndo; e.Handled = true; }));
+        CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, _) => NavigateHistory(true),
+            (_, e) => { e.CanExecute = history.CanRedo; e.Handled = true; }));
+        InputBindings.Add(new KeyBinding(ApplicationCommands.Redo, Key.Z, ModifierKeys.Control | ModifierKeys.Shift));
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 20) };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         DockPanel.SetDock(actions, Dock.Right); header.Children.Add(actions);
-        var view = new ComboBox { ItemsSource = new[] { "Month", "Week" }, SelectedIndex = 0, MinWidth = 85,
+        var view = new ComboBox { ItemsSource = new[] { "Month", "Week", "Day" }, SelectedIndex = 0, MinWidth = 85,
             Padding = new Thickness(7), Margin = new Thickness(0, 0, 12, 0) };
         System.Windows.Automation.AutomationProperties.SetName(view, "Calendar view");
-        view.SelectionChanged += (_, _) => { weekMode = view.SelectedIndex == 1; Refresh(); };
+        view.SelectionChanged += (_, _) => { viewMode = (CalendarViewMode)view.SelectedIndex; Refresh(); };
         actions.Children.Add(view);
         search.ToolTip = "Search event titles, locations, and notes";
         System.Windows.Automation.AutomationProperties.SetName(search, "Search events");
@@ -140,28 +154,24 @@ public sealed class CalendarWindow : Window
     }
     private void ChangePeriod(int amount)
     {
-        try
-        {
-            var next = weekMode ? selected.AddDays(amount * 7) : month.AddMonths(amount);
-            // Both views require complete weeks around the displayed month.
-            if (next.Year < 2 || next.Year > 9998) return;
-            selected = next; month = new(next.Year, next.Month, 1); search.Clear(); Refresh();
-        }
-        catch (ArgumentOutOfRangeException) { }
+        selected = CalendarNavigation.Move(selected, viewMode, amount);
+        month = new(selected.Year, selected.Month, 1); search.Clear(); Refresh();
     }
     private void Refresh()
     {
         refreshing = true;
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
-        if (weekMode)
+        if (viewMode != CalendarViewMode.Month)
         {
             var first = WeekLayout.StartOfWeek(selected);
-            monthTitle.Text = $"{first:MMM d} – {first.AddDays(6):MMM d, yyyy}";
+            monthTitle.Text = viewMode == CalendarViewMode.Day ? selected.ToString("ddd, MMM d, yyyy")
+                : $"{first:MMM d} – {first.AddDays(6):MMM d, yyyy}";
             monthTitle.FontSize = 20;
             calendarContent.Content = new WeekView(document, selected,
                 date => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); },
                 item => ShowEditor(item),
-                (date, time) => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); ShowEditor(null, time); }, weekOffset);
+                (date, time) => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); ShowEditor(null, time); },
+                weekOffset, viewMode == CalendarViewMode.Day);
         }
         else
         {
@@ -170,6 +180,9 @@ public sealed class CalendarWindow : Window
             RefreshMonth();
         }
         refreshing = false; RefreshAgenda(); status.Text = "Saved on this PC · Local-time calendar";
+        undoItem.Header = history.CanUndo ? $"_Undo {history.UndoDescription}" : "_Undo";
+        redoItem.Header = history.CanRedo ? $"_Redo {history.RedoDescription}" : "_Redo";
+        CommandManager.InvalidateRequerySuggested();
     }
     private void RefreshMonth()
     {
@@ -215,21 +228,37 @@ public sealed class CalendarWindow : Window
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
             var events = document.Events.Where(e => e.Id != draft.Id).ToList(); events.Add(draft);
-            if (!Save(new CalendarDocument(1, events))) continue;
+            if (!Save(new CalendarDocument(1, events), original is null ? "create event" : "edit event")) continue;
             selected = DateOnly.FromDateTime(draft.Start); month = new(selected.Year, selected.Month, 1);
-            search.Clear(); Refresh(); return;
+            search.Clear(); Refresh(); agenda.Focus(); return;
         }
     }
-    private bool Save(CalendarDocument next)
+    private bool Save(CalendarDocument next, string description)
     {
-        try { store.Save(next); document = next; return true; }
+        try { history.Commit(next, description, store.Save); document = history.Current; return true; }
         catch (Exception error) { MessageBox.Show(this, $"Your change was not saved.\n\n{error.Message}", "Save failed", MessageBoxButton.OK, MessageBoxImage.Error); return false; }
+    }
+    private void NavigateHistory(bool redo)
+    {
+        var description = redo ? history.RedoDescription : history.UndoDescription;
+        try
+        {
+            var changed = redo ? history.Redo(store.Save) : history.Undo(store.Save);
+            if (!changed) return;
+            document = history.Current; Refresh();
+            status.Text = $"{(redo ? "Redid" : "Undid")} {description} · Saved on this PC";
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(this, $"Your calendar and undo history have not changed.\n\n{error.Message}",
+                "Could not save history change", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
     private void Delete()
     {
         if (agenda.SelectedItem is not CalendarEvent item) return;
         if (MessageBox.Show(this, $"Delete “{item.Title}”?", "Delete event", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        if (Save(new CalendarDocument(1, document.Events.Where(e => e.Id != item.Id).ToList()))) Refresh();
+        if (Save(new CalendarDocument(1, document.Events.Where(e => e.Id != item.Id).ToList()), "delete event")) Refresh();
     }
     private void Export()
     {
@@ -249,7 +278,7 @@ public sealed class CalendarWindow : Window
         {
             var incoming = CalendarStore.Read(picker.FileName);
             if (MessageBox.Show(this, "Replace your current native calendar with this backup? Export a backup first if you need the current events.", "Restore calendar", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            if (Save(incoming)) { search.Clear(); Refresh(); }
+            if (Save(incoming, "restore backup")) { search.Clear(); Refresh(); }
         }
         catch (Exception error) { MessageBox.Show(this, error.Message, "Restore failed", MessageBoxButton.OK, MessageBoxImage.Error); }
     }

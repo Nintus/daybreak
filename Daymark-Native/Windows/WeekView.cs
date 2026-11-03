@@ -13,20 +13,22 @@ public sealed class WeekView : UserControl
     private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(224, 218, 249));
 
     public WeekView(CalendarDocument document, DateOnly selected, Action<DateOnly> selectDay,
-        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset)
+        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset, bool singleDay = false)
     {
-        var first = WeekLayout.StartOfWeek(selected);
-        var events = document.Days(first, 7);
-        var root = new DockPanel { MinWidth = 640, Width = 640 };
+        var first = singleDay ? selected : WeekLayout.StartOfWeek(selected);
+        var dayCount = singleDay ? 1 : 7;
+        var minimumWidth = singleDay ? 240 : 640;
+        var events = document.Days(first, dayCount);
+        var root = new DockPanel { MinWidth = minimumWidth, Width = minimumWidth };
         var outer = new ScrollViewer { Content = root, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        outer.SizeChanged += (_, e) => root.Width = Math.Max(640, e.NewSize.Width);
+        outer.SizeChanged += (_, e) => root.Width = Math.Max(minimumWidth, e.NewSize.Width);
         Content = outer;
-        var header = Columns();
+        var header = Columns(dayCount);
         header.Margin = new Thickness(0, 0, SystemParameters.VerticalScrollBarWidth, 0);
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         Add(header, new TextBlock { Text = "All day", FontSize = 11, Margin = new Thickness(2, 48, 0, 0) }, 0);
-        for (var i = 0; i < 7; i++)
+        for (var i = 0; i < dayCount; i++)
         {
             var date = first.AddDays(i);
             var stack = new StackPanel();
@@ -40,7 +42,7 @@ public sealed class WeekView : UserControl
             stack.Children.Add(new ScrollViewer { Content = allDay, MaxHeight = 100, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             Add(header, stack, i + 1);
         }
-        var grid = Columns();
+        var grid = Columns(dayCount);
         timeline = new ScrollViewer { Content = grid, VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         root.Children.Add(timeline);
@@ -51,7 +53,7 @@ public sealed class WeekView : UserControl
             Canvas.SetTop(label, hour * 60); hours.Children.Add(label);
         }
         Add(grid, hours, 0);
-        for (var i = 0; i < 7; i++)
+        for (var i = 0; i < dayCount; i++)
         {
             var date = first.AddDays(i);
             var canvas = new Canvas { Height = 1440, ClipToBounds = true,
@@ -85,10 +87,10 @@ public sealed class WeekView : UserControl
         Loaded += (_, _) => timeline.ScrollToVerticalOffset(offset);
     }
 
-    private static Grid Columns()
+    private static Grid Columns(int dayCount)
     {
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-        for (var i = 0; i < 7; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var i = 0; i < dayCount; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         return grid;
     }
     private static void Add(Grid grid, UIElement element, int column) { Grid.SetColumn(element, column); grid.Children.Add(element); }
