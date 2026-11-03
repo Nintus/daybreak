@@ -1,9 +1,6 @@
 name: Native Windows preview
 
 on:
-  push:
-    branches: [native/windows-preview]
-    paths: [Daymark-Native/**, .github/workflows/native-windows-preview.yml]
   workflow_dispatch:
 
 permissions:
@@ -23,17 +20,17 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
-          dotnet-version: 10.0.401
+          dotnet-version: 10.0.403
       - name: Test calendar and storage on Windows
         run: dotnet run --project Daymark-Native/Tests/Daymark.Tests.csproj -c Release
       - name: Publish self-contained Windows app
-        run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -o staging/Daymark-Native-Windows
+        run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -p:SourceRevisionId=${{ github.sha }} -o staging/Daymark-Native-Windows
       - name: Package app, source, and licenses
         shell: pwsh
         run: |
           $licenses = 'staging/Daymark-Native-Windows/licenses'
           New-Item -ItemType Directory -Force $licenses | Out-Null
-          Copy-Item Daymark-Source/LICENSE "$licenses/Daymark-LICENSE.txt"
+          Copy-Item LICENSE "$licenses/Daymark-LICENSE.txt"
           foreach ($package in @('microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64')) {
             $packageRoot = Join-Path $env:USERPROFILE ".nuget/packages/$package"
             $version = Get-ChildItem $packageRoot -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
@@ -43,20 +40,30 @@ jobs:
             }
           }
           Get-ChildItem staging/Daymark-Native-Windows -Filter '*.pdb' | Remove-Item
+          ./Daymark-Native/Build/Verify-Package.ps1 -PackagePath staging/Daymark-Native-Windows -Commit $env:GITHUB_SHA -RunId $env:GITHUB_RUN_ID
           Compress-Archive -Path staging/Daymark-Native-Windows -DestinationPath Daymark-Native-Windows-x64.zip
           (Get-FileHash Daymark-Native-Windows-x64.zip -Algorithm SHA256).Hash.ToLower() + '  Daymark-Native-Windows-x64.zip' | Set-Content Daymark-Native-Windows-x64.zip.sha256
-          git archive --format=zip --output=Daymark-Native-Source.zip HEAD Daymark-Native
+          git archive --format=zip --output=Daymark-Native-Source.zip HEAD Daymark-Native LICENSE README.md .github/workflows/native-windows-checks.yml .github/workflows/native-windows-preview.yml
           if ($LASTEXITCODE -ne 0) { throw 'Source archive failed' }
       - name: Publish preview download
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'v0.1.0-native-windows-preview'
+          $manifest = Get-Content staging/Daymark-Native-Windows/build.json -Raw | ConvertFrom-Json
+          $version = $manifest.version.Split('+')[0]
+          $tag = "v$version-native-windows-preview-$($env:GITHUB_SHA.Substring(0, 12))"
           gh release view $tag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target $env:GITHUB_SHA --prerelease --latest=false --title 'Daymark Native Windows Preview 0.1' --notes 'Native C# and WPF preview for Windows 10/11 x64. Download Daymark-Native-Windows-x64.zip, choose Extract All, then open Daymark.exe. No browser or separate runtime installation required. Includes local non-recurring events, search, and backups. Separate data from the web app. Recurrence, reminders, sync, and web-data migration are not implemented. Windows build and 12 storage/calendar tests pass; interactive UI behavior and resource usage still require validation. Unsigned preview.'
-            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
-          }
-          gh release upload $tag Daymark-Native-Windows-x64.zip Daymark-Native-Windows-x64.zip.sha256 Daymark-Native-Source.zip --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
+          if ($LASTEXITCODE -eq 0) { throw 'This commit already has a preview release; existing assets will not be replaced.' }
+          @"
+          Native Windows preview $version. Unsigned; Smart App Control may block it. SignPath acceptance and signing integration remain pending.
+
+          Download the Windows ZIP, extract the complete folder, and read START-HERE.txt. Supports local timed/all-day events, month/week views, search and backups. Sync, recurrence, reminders and timezone-aware events are not implemented.
+
+          Source commit: $env:GITHUB_SHA
+          Build: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          Code signing policy: https://github.com/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA/Daymark-Native/docs/CODE_SIGNING.md
+          Privacy policy: https://github.com/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA/Daymark-Native/docs/PRIVACY.md
+          "@ | Set-Content preview-notes.md
+          gh release create $tag Daymark-Native-Windows-x64.zip Daymark-Native-Windows-x64.zip.sha256 Daymark-Native-Source.zip --target $env:GITHUB_SHA --prerelease --latest=false --title "Daymark Native Windows Preview $version" --notes-file preview-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

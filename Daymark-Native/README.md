@@ -17,6 +17,10 @@ Use Windows 10 or Windows 11 on an x64 PC. This self-contained build includes th
 
 The preview is unsigned; code signing and installer distribution are not completed. Do not disable Windows security settings. A successful cross-build does not establish native launch, display, accessibility, or performance results on Windows.
 
+## Code signing policy
+
+Read the [code signing policy](docs/CODE_SIGNING.md), [privacy policy](docs/PRIVACY.md) and [SignPath readiness checklist](docs/SIGNPATH_READINESS.md). Acceptance and integration are pending; current previews remain unsigned.
+
 ## Data and limitations
 
 Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful state is `calendar.json.bak`. Saves validate the entire document, flush a temporary file, and replace the data file. Invalid imports do not replace existing data. Startup stops if the data file is damaged and displays its location instead of overwriting it with an empty calendar.
