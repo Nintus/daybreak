@@ -45,6 +45,10 @@ public sealed class CalendarWindow : Window
     private DateOnly selected = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly month;
     private readonly Grid days = new();
+    private readonly ContentControl calendarContent = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        VerticalContentAlignment = VerticalAlignment.Stretch };
+    private bool weekMode;
+    private double weekOffset = 8 * 60;
     private readonly TextBlock monthTitle = new() { FontSize = 26, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock dayTitle = new() { FontSize = 20, Margin = new Thickness(0, 0, 0, 16) };
     private readonly ListBox agenda = new() { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
@@ -71,6 +75,11 @@ public sealed class CalendarWindow : Window
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         DockPanel.SetDock(actions, Dock.Right); header.Children.Add(actions);
+        var view = new ComboBox { ItemsSource = new[] { "Month", "Week" }, SelectedIndex = 0, MinWidth = 85,
+            Padding = new Thickness(7), Margin = new Thickness(0, 0, 12, 0) };
+        System.Windows.Automation.AutomationProperties.SetName(view, "Calendar view");
+        view.SelectionChanged += (_, _) => { weekMode = view.SelectedIndex == 1; Refresh(); };
+        actions.Children.Add(view);
         search.ToolTip = "Search event titles, locations, and notes";
         System.Windows.Automation.AutomationProperties.SetName(search, "Search events");
         search.TextChanged += (_, _) => RefreshAgenda();
@@ -96,14 +105,14 @@ public sealed class CalendarWindow : Window
         DockPanel.SetDock(navigation, Dock.Top); calendar.Children.Add(navigation);
         var controls = new StackPanel { Orientation = Orientation.Horizontal };
         DockPanel.SetDock(controls, Dock.Right); navigation.Children.Add(controls);
-        controls.Children.Add(Button("Previous", (_, _) => ChangeMonth(-1)));
+        controls.Children.Add(Button("Previous", (_, _) => ChangePeriod(-1)));
         controls.Children.Add(Button("_Today", (_, _) => { selected = DateOnly.FromDateTime(DateTime.Today); month = new(selected.Year, selected.Month, 1); search.Clear(); Refresh(); }));
-        controls.Children.Add(Button("Next", (_, _) => ChangeMonth(1)));
+        controls.Children.Add(Button("Next", (_, _) => ChangePeriod(1)));
         navigation.Children.Add(monthTitle);
         for (var i = 0; i < 7; i++) days.ColumnDefinitions.Add(new ColumnDefinition());
         days.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var i = 0; i < 6; i++) days.RowDefinitions.Add(new RowDefinition());
-        calendar.Children.Add(days);
+        calendar.Children.Add(calendarContent);
         var side = new DockPanel { Margin = new Thickness(8, 0, 0, 0) }; Grid.SetColumn(side, 1); body.Children.Add(side);
         DockPanel.SetDock(dayTitle, Dock.Top); side.Children.Add(dayTitle);
         var eventActions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
@@ -129,10 +138,41 @@ public sealed class CalendarWindow : Window
         var button = new Button { Content = label, Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(3, 0, 3, 0) };
         button.Click += action; return button;
     }
-    private void ChangeMonth(int amount) { month = month.AddMonths(amount); selected = month; Refresh(); }
+    private void ChangePeriod(int amount)
+    {
+        try
+        {
+            var next = weekMode ? selected.AddDays(amount * 7) : month.AddMonths(amount);
+            // Both views require complete weeks around the displayed month.
+            if (next.Year < 2 || next.Year > 9998) return;
+            selected = next; month = new(next.Year, next.Month, 1); search.Clear(); Refresh();
+        }
+        catch (ArgumentOutOfRangeException) { }
+    }
     private void Refresh()
     {
         refreshing = true;
+        if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
+        if (weekMode)
+        {
+            var first = WeekLayout.StartOfWeek(selected);
+            monthTitle.Text = $"{first:MMM d} – {first.AddDays(6):MMM d, yyyy}";
+            monthTitle.FontSize = 20;
+            calendarContent.Content = new WeekView(document, selected,
+                date => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); },
+                item => ShowEditor(item),
+                (date, time) => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); ShowEditor(null, time); }, weekOffset);
+        }
+        else
+        {
+            calendarContent.Content = days;
+            monthTitle.FontSize = 26;
+            RefreshMonth();
+        }
+        refreshing = false; RefreshAgenda(); status.Text = "Saved on this PC · Local-time calendar";
+    }
+    private void RefreshMonth()
+    {
         days.Children.Clear(); monthTitle.Text = month.ToString("MMMM yyyy");
         var labels = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
         for (var i = 0; i < 7; i++) { var label = new TextBlock { Text = labels[i], HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(4, 0, 4, 10), Foreground = Brushes.DimGray }; Grid.SetColumn(label, i); days.Children.Add(label); }
@@ -154,7 +194,6 @@ public sealed class CalendarWindow : Window
             button.Click += (_, _) => { selected = date; search.Clear(); Refresh(); };
             Grid.SetRow(button, i / 7 + 1); Grid.SetColumn(button, i % 7); days.Children.Add(button);
         }
-        refreshing = false; RefreshAgenda(); status.Text = "Saved on this PC · Local-time calendar";
     }
     private void RefreshAgenda()
     {
@@ -167,12 +206,12 @@ public sealed class CalendarWindow : Window
     }
     private void NewEvent() => ShowEditor(null);
     private void Edit() { if (agenda.SelectedItem is CalendarEvent item) ShowEditor(item); }
-    private void ShowEditor(CalendarEvent? original)
+    private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null)
     {
         var draft = original;
         while (true)
         {
-            var editor = new EventEditor(selected, draft) { Owner = this };
+            var editor = new EventEditor(selected, draft, initialTime) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
             var events = document.Events.Where(e => e.Id != draft.Id).ToList(); events.Add(draft);
