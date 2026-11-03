@@ -24,7 +24,7 @@ jobs:
       - name: Save build identity
         shell: pwsh
         run: |
-          @{ commit = '${{ github.sha }}'; run = '${{ github.run_id }}'; version = '0.2.0' } | ConvertTo-Json | Set-Content artifacts/windows/build.json
+          @{ commit = '${{ github.sha }}'; run = '${{ github.run_id }}'; version = '0.3.0' } | ConvertTo-Json | Set-Content artifacts/windows/build.json
       - name: Include application and runtime licenses
         shell: pwsh
         run: |

@@ -4,6 +4,8 @@ A real Windows desktop client built with C# and WPF on .NET 10. The UI uses Wind
 
 This is the first native client, not feature parity with the JavaScript calendar. It supports a month grid, a selected-day agenda, creating/editing/deleting timed and all-day events, title/location/notes search, and native JSON backup/restore. It works without network access.
 
+Choose **Week** from **Calendar view** for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
+
 ## Run the prepared Windows build
 
 1. Download `Daymark-Native-Windows-x64.zip` from the task's prepared files.
@@ -50,7 +52,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 14 checks, including visible-range results matching individual day queries across midnight, multi-day events, ordering and the 42-day month boundary. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The shared core has 21 checks, including visible-range boundaries and week layout: overlap chains, adjacent appointments, clipped overnight segments, minimum selectable display space and Monday starts across year/leap-day boundaries. The month view scans the event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 

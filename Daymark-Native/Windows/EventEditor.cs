@@ -17,7 +17,7 @@ public sealed class EventEditor : Window
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBlock error = new() { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
 
-    public EventEditor(DateOnly selected, CalendarEvent? original)
+    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null)
     {
         Title = original is null ? "New event" : "Edit event";
         Width = 490; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
@@ -39,7 +39,7 @@ public sealed class EventEditor : Window
         var cancel = new Button { Content = "Cancel", IsCancel = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
         var save = new Button { Content = "_Save event", IsDefault = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
         actions.Children.Add(cancel); actions.Children.Add(save); panel.Children.Add(actions);
-        var start = original?.Start ?? selected.ToDateTime(new TimeOnly(9, 0));
+        var start = original?.Start ?? selected.ToDateTime(initialTime ?? new TimeOnly(9, 0));
         var end = original?.End ?? start.AddHours(1);
         title.Text = original?.Title ?? ""; location.Text = original?.Location ?? ""; notes.Text = original?.Notes ?? "";
         startDate.SelectedDate = start.Date; endDate.SelectedDate = end.Date;
