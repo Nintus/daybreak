@@ -12,3 +12,7 @@ The active objective is a rounded native Windows calendar that is ready to begin
 - Evidence: automated checks, Windows package CI, native UI QA and a written readiness assessment with remaining limitations.
 
 Reminders, full iCalendar interoperability, advanced scheduling and signed distribution remain important product work. They need not delay beginning account integration once the event model and local workflows meet this bar. Do not claim paid-calendar feature parity or production-grade sync at this milestone.
+
+## Assessment — November 3, 2026
+
+The local foundation is ready to begin Google and Microsoft account integration. The [native QA report](QA-INTEGRATION-READINESS.md) records 93 passing core checks, passing Windows package CI, actual interaction evidence and limitations. Follow the [provider delivery sequence](docs/PROVIDER_INTEGRATION.md), beginning with sign-in and read-only discovery. No live provider client or credential handling is implemented yet. Resource samples under automation are concerning and require a clean unattended baseline before efficiency claims; this remains open alongside broader accessibility/display testing.
