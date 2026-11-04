@@ -4,7 +4,7 @@ using System.Windows.Media;
 
 namespace Daymark.Windows;
 
-internal enum AppThemeMode { System, Light, Dark }
+internal enum AppThemeMode { System, Light, Dark, Oled, Ocean, Forest, Rose, Custom }
 
 internal static class NativeTheme
 {
@@ -17,7 +17,9 @@ internal static class NativeTheme
     private static readonly Dictionary<string, Swatch> swatches = new();
     private static readonly Dictionary<string, SolidColorBrush> brushes = new();
     private static string settingsPath = "";
-    public static AppThemeMode Mode { get; private set; } = AppThemeMode.System;
+    public static ThemeSettings Settings { get; private set; } = new();
+    public static AppThemeMode Mode => Settings.Mode;
+    public static string Name(AppThemeMode mode) => mode switch { AppThemeMode.System => "System setting", AppThemeMode.Oled => "OLED black", AppThemeMode.Ocean => "Ocean", AppThemeMode.Forest => "Forest", AppThemeMode.Rose => "Rose dusk", AppThemeMode.Custom => "Custom", _ => mode.ToString() };
     public static bool IsDark { get; private set; }
     public static event Action? Changed;
     private static Brush Get(string key)
@@ -30,7 +32,7 @@ internal static class NativeTheme
             new System.Windows.Data.Binding(nameof(Swatch.Value)) { Source = swatch });
         brushes[key] = brush; return brush;
     }
-    public static Brush CalendarColor(string color) => Get(color switch { "Teal" => "Teal", "Violet" => "Violet", "Orange" => "Orange", "Rose" => "Rose", _ => "AccentInk" });
+    public static Brush CalendarColor(string color) => Get(color switch { "Teal" => "Teal", "Violet" => "Violet", "Orange" => "Orange", "Rose" => "Rose", _ => "Blue" });
     public static Brush Background => Get("Background");
     public static Brush Error => Get("Error");
     public static Brush OnAccent => Get("OnAccent");
@@ -49,8 +51,17 @@ internal static class NativeTheme
     public static void Apply(Application app, string path)
     {
         settingsPath = path;
-        try { if (System.IO.File.Exists(path) && Enum.TryParse<AppThemeMode>(System.IO.File.ReadAllText(path).Trim(), out var mode) && Enum.IsDefined(mode)) Mode = mode; }
-        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException) { /* A preference cannot prevent opening the calendar. */ }
+        try
+        {
+            if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length <= 4096)
+            {
+                var text = System.IO.File.ReadAllText(path).Trim();
+                var loaded = Enum.TryParse<AppThemeMode>(text, out var mode) && Enum.IsDefined(mode) ? new ThemeSettings(mode)
+                    : System.Text.Json.JsonSerializer.Deserialize<ThemeSettings>(text) ?? new();
+                Validate(loaded); Settings = loaded;
+            }
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException) { Settings = new(); }
         Refresh();
         if (!SystemParameters.HighContrast) app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(Resources));
         Microsoft.Win32.UserPreferenceChangedEventHandler onPreferenceChanged = (_, _) =>
@@ -61,36 +72,41 @@ internal static class NativeTheme
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += onPreferenceChanged;
         app.Exit += (_, _) => Microsoft.Win32.SystemEvents.UserPreferenceChanged -= onPreferenceChanged;
     }
-    public static void Select(AppThemeMode mode)
+    private static void Validate(ThemeSettings settings)
     {
-        // Persist before changing the UI, so a failed write leaves the preference intact.
+        if (!Enum.IsDefined(settings.Mode) || !Enum.IsDefined(settings.Base)) throw new ArgumentException("Choose a supported theme.");
+        ThemePalette.Parse(settings.Accent);
+    }
+    public static void Select(AppThemeMode mode) => Save(Settings with { Mode = mode });
+    public static void Save(ThemeSettings settings)
+    {
+        Validate(settings);
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(settingsPath)!);
         var temporary = settingsPath + ".tmp";
-        System.IO.File.WriteAllText(temporary, mode.ToString());
+        System.IO.File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(settings));
         System.IO.File.Move(temporary, settingsPath, true);
-        Mode = mode; Refresh();
+        Preview(settings);
     }
+    public static void Preview(ThemeSettings settings) { Validate(settings); Settings = settings; Refresh(); }
     public static void Refresh()
     {
-        var dark = Mode == AppThemeMode.Dark || Mode == AppThemeMode.System && SystemIsDark();
-        IsDark = dark && !SystemParameters.HighContrast;
-        var colors = new Dictionary<string, (string Light, string Dark)>
+        var basis = Mode switch
         {
-            ["Error"] = ("#B42318", "#FF9C96"), ["OnAccent"] = ("#FFFFFF", "#10151F"), ["Background"] = ("#F4F6FA", "#10151F"), ["Surface"] = ("#FFFFFF", "#191F2C"),
-            ["Ink"] = ("#182338", "#E9EEF7"), ["Muted"] = ("#5D6C82", "#A6B3C8"),
-            ["Line"] = ("#E5EAF1", "#354052"), ["Accent"] = ("#2563EB", "#78A7FF"),
-            ["AccentInk"] = ("#2454A5", "#B5D0FF"), ["Soft"] = ("#EDF4FF", "#233752"),
-            ["Subtle"] = ("#F8FAFD", "#1D2635"), ["Teal"] = ("#167269", "#83D8C8"),
-            ["Violet"] = ("#7240C8", "#CAB6FF"), ["Orange"] = ("#9F5000", "#F4B77A"), ["Rose"] = ("#AC315D", "#FFADC7"),
-            ["TealSoft"] = ("#EAF6F2", "#193D3B"), ["Hover"] = ("#F1F5FB", "#2A3548"),
-            ["Pressed"] = ("#E5EDF8", "#354660"), ["SelectedBorder"] = ("#99B9EE", "#78A7FF")
+            AppThemeMode.Light => ThemeBase.Light,
+            AppThemeMode.Oled => ThemeBase.Oled,
+            AppThemeMode.Custom => Settings.Base,
+            AppThemeMode.System => SystemIsDark() ? ThemeBase.Dark : ThemeBase.Light,
+            _ => ThemeBase.Dark
         };
+        IsDark = basis != ThemeBase.Light && !SystemParameters.HighContrast;
+        var accent = Mode switch { AppThemeMode.Ocean => "#54BCF5", AppThemeMode.Forest => "#63C4A0", AppThemeMode.Rose => "#E9A1BE", AppThemeMode.Custom => Settings.Accent, _ => "#7986FF" };
+        var colors = ThemePalette.Build(basis, accent);
         var changed = false;
-        foreach (var (key, pair) in colors)
+        foreach (var (key, paletteColor) in colors)
         {
             var brush = Get(key);
-            var color = (Color)ColorConverter.ConvertFromString(IsDark ? pair.Dark : pair.Light);
-            if (SystemParameters.HighContrast) color = key is "Error" or "Ink" or "Muted" or "Line" or "AccentInk" or "Teal" or "Violet" or "Orange" or "Rose" ? SystemColors.WindowTextColor
+            var color = paletteColor;
+            if (SystemParameters.HighContrast) color = key is "Error" or "Ink" or "Muted" or "Line" or "AccentInk" or "Blue" or "Teal" or "Violet" or "Orange" or "Rose" ? SystemColors.WindowTextColor
                 : key == "OnAccent" ? SystemColors.HighlightTextColor : key is "Accent" or "SelectedBorder" ? SystemColors.HighlightColor : SystemColors.WindowColor;
             if (swatches[key].Value == color && Application.Current.Resources["Theme" + key] == brush) continue;
             swatches[key].Value = color;
@@ -137,14 +153,14 @@ internal static class NativeTheme
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
             <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ThemePressed}"/></Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="#2563EB"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="2"/></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
       </Style>
       <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Style.Resources><SolidColorBrush x:Key="ThemeHover" Color="#1D4ED8"/><SolidColorBrush x:Key="ThemePressed" Color="#1E40AF"/></Style.Resources>
-        <Setter Property="Background" Value="#2563EB"/><Setter Property="BorderBrush" Value="#2563EB"/><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/>
+        <Style.Resources><SolidColorBrush x:Key="ThemeHover" Color="{Binding Color, Source={StaticResource ThemeAccent}}"/><SolidColorBrush x:Key="ThemePressed" Color="{Binding Color, Source={StaticResource ThemeAccent}}"/></Style.Resources>
+        <Setter Property="Background" Value="{DynamicResource ThemeAccent}"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/><Setter Property="Foreground" Value="{DynamicResource ThemeOnAccent}"/><Setter Property="FontWeight" Value="SemiBold"/>
       </Style>
       <Style x:Key="CalendarDay" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
@@ -153,7 +169,7 @@ internal static class NativeTheme
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="#2563EB"/><Setter TargetName="Cell" Property="BorderThickness" Value="2"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/><Setter TargetName="Cell" Property="BorderThickness" Value="2"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
       </Style>
@@ -172,7 +188,7 @@ internal static class NativeTheme
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Segment" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
             <Trigger Property="IsChecked" Value="True"><Setter TargetName="Segment" Property="Background" Value="{DynamicResource ThemeSurface}"/><Setter TargetName="Segment" Property="BorderBrush" Value="{DynamicResource ThemeLine}"/><Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Segment" Property="BorderBrush" Value="#2563EB"/><Setter TargetName="Segment" Property="BorderThickness" Value="2"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Segment" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/><Setter TargetName="Segment" Property="BorderThickness" Value="2"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
       </Style>
@@ -187,7 +203,7 @@ internal static class NativeTheme
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="Text" Value=""><Setter TargetName="Hint" Property="Visibility" Value="Visible"/></Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#2563EB"/></Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
@@ -200,7 +216,7 @@ internal static class NativeTheme
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
             <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="Background" Value="{DynamicResource ThemeSoft}"/><Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource ThemeSelectedBorder}"/></Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#2563EB"/></Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
       </Style>
