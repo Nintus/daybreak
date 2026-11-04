@@ -4,11 +4,15 @@ A real Windows desktop client built with C# and WPF on .NET 10. The UI uses Wind
 
 This is the first native client, not feature parity with the JavaScript calendar. It supports a month grid, a selected-day agenda, creating/editing/deleting timed and all-day events, title/location/notes search, and native JSON backup/restore. It works without network access.
 
-Choose **Week** from **Calendar view** for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
+Choose **Week** in the view switcher for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
 
 Choose **Day** for the same timeline focused on one date. Previous/Next move one day, including across month and year boundaries. Switching Month/Week/Day keeps your selected date; month navigation keeps the day number where possible and clamps it in shorter months.
 
 The **Edit** menu offers calendar **Undo** and **Redo** for event creation, editing, deletion and backup restores. Each action is saved to disk, and a failed save leaves the current document and history intact. The most recent 20 changes are available during the current session; closing the app clears this history. A new change after Undo clears Redo. Use Ctrl+Z for Undo, Ctrl+Y or Ctrl+Shift+Z for Redo when working in the calendar. Text fields keep their own text-editing undo behavior; the Edit menu explicitly acts on calendar changes. Exporting a backup does not add a history step.
+
+## Interface
+
+The native interface uses a compact Month/Week/Day switcher, event previews in the month grid, and a selected-day schedule with readable time and zone summaries. Use **File** for backup/restore and **Help** for About and time-zone guidance. Search filters the schedule across the calendar. The editor groups start and end date/time fields; all-day dates retain their exclusive-end meaning. Keyboard focus is visible. High contrast uses system control templates and colors; switching contrast while the app is open requires restarting it.
 
 ## Time zones and daylight saving
 
@@ -49,7 +53,7 @@ All-day event end dates are exclusive: to include Friday and Saturday, set the s
 
 The active direction is **Windows first**, with portable calendar logic and platform-specific interfaces. See [the roadmap](ROADMAP.md) for the implementation order and cloud/local handoff rules.
 
-**About** shows the version, source commit and data location. Automated checks publish a commit-named Windows artifact without replacing a public release. Build artifacts are retained for 14 days.
+**Help → About Daymark** shows the version, source commit and data location. Automated checks publish a commit-named Windows artifact without replacing a public release. Build artifacts are retained for 14 days.
 
 For manual QA, launch `Daymark.exe --test-calendar`. Its title explicitly says **Test calendar**, and its data is stored in `TestCalendar/calendar.json` beside the executable. It has a separate single-instance guard, so your personal calendar can stay open. The test folder must be writable; test data persists between launches. Do not distribute that folder with app packages.
 

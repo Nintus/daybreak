@@ -23,31 +23,47 @@ public sealed class EventEditor : Window
     public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null)
     {
         Title = original is null ? "New event" : "Edit event";
-        Width = 490; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
+        Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
         ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI"); FontSize = 14;
+        Background = NativeTheme.Surface; Foreground = NativeTheme.Ink;
         var panel = new StackPanel { Margin = new Thickness(22) }; Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Label Field(string label, Control input)
+        panel.Children.Add(new TextBlock { Text = Title, FontSize = 24, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
+        Label Field(string label, Control input, Panel? container = null)
         {
+            container ??= panel;
             var caption = new Label { Content = label, Target = input, Padding = new Thickness(0), Margin = new Thickness(0, 10, 0, 5) };
-            panel.Children.Add(caption);
-            input.Padding = new Thickness(7); panel.Children.Add(input);
+            container.Children.Add(caption);
+            input.Padding = new Thickness(7); container.Children.Add(input);
             return caption;
         }
-        Field("_Title", title); Field("Start _date", startDate); Field("Start ti_me (24-hour HH:mm)", startTime);
-        Field("End da_te (exclusive for all-day events)", endDate); Field("End tim_e (24-hour HH:mm)", endTime);
+        void DateAndTime(string dateLabel, DatePicker date, string timeLabel, TextBox time)
+        {
+            var row = new Grid(); row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(155) });
+            var left = new StackPanel { Margin = new Thickness(0, 0, 14, 0) }; var right = new StackPanel();
+            Grid.SetColumn(right, 1); row.Children.Add(left); row.Children.Add(right); panel.Children.Add(row);
+            Field(dateLabel, date, left); Field(timeLabel, time, right);
+            time.ToolTip = "24-hour time, for example 09:00 or 14:30";
+        }
+        Field("_Title", title);
+        DateAndTime("Start _date", startDate, "Start ti_me · 24-hour", startTime);
+        DateAndTime("End da_te", endDate, "End tim_e · 24-hour", endTime);
         allDay.Margin = new Thickness(0, 14, 0, 0); panel.Children.Add(allDay);
         allDay.Checked += (_, _) => { startTime.IsEnabled = endTime.IsEnabled = false; if (endDate.SelectedDate <= startDate.SelectedDate) endDate.SelectedDate = startDate.SelectedDate?.AddDays(1); };
         allDay.Unchecked += (_, _) => startTime.IsEnabled = endTime.IsEnabled = true;
-        Field("Time _zone (entered clock times stay the same when changed)", zone);
+        var allDayHelp = new TextBlock { Text = "End date is exclusive: choose the day after the last included day.", FontSize = 12,
+            Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+        panel.Children.Add(allDayHelp);
+        Field("Time _zone", zone); zone.ToolTip = "Changing this keeps entered clock times and changes the event's instants.";
         var startOccurrenceLabel = Field("Start occurrence — this hour happens twice", startOccurrence);
         var endOccurrenceLabel = Field("End occurrence — this hour happens twice", endOccurrence);
         panel.Children.Add(new TextBlock { Text = "Floating events keep the entered clock time in every display zone.",
-            FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
+            FontSize = 12, Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
         Field("_Location", location); Field("_Notes", notes); panel.Children.Add(error);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
         var save = new Button { Content = "_Save event", IsDefault = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
+        save.Style = NativeTheme.Style("PrimaryButton");
         actions.Children.Add(cancel); actions.Children.Add(save); panel.Children.Add(actions);
         defaultZone ??= TimeZoneInfo.Local;
         var sourceZone = original?.TimeZoneId is string id ? CalendarTime.FindZone(id) : defaultZone;
@@ -76,6 +92,7 @@ public sealed class EventEditor : Window
         void UpdateOccurrences()
         {
             zone.IsEnabled = allDay.IsChecked != true;
+            allDayHelp.Visibility = allDay.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             startOccurrence.Visibility = startOccurrenceLabel.Visibility = Repeated(startDate, startTime) ? Visibility.Visible : Visibility.Collapsed;
             endOccurrence.Visibility = endOccurrenceLabel.Visibility = Repeated(endDate, endTime) ? Visibility.Visible : Visibility.Collapsed;
         }
