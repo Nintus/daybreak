@@ -19,6 +19,8 @@ GitHub is the source of truth for cloud and local development. Work on branches 
 
 Do not describe legacy floating events as anchored instants, dispatched reminders as observed Windows notifications, or the Electron app as the native WPF client. Feature parity with Fantastical is a long-term product target, not the current preview's capability.
 
-## Next substantial feature
+## Active milestone and next phase
 
-Native day/week views and session undo/redo are implemented. The timezone foundation stores non-recurring timed events as instants with a source zone, handles DST gaps/folds explicitly, and preserves legacy floating times through version-2 migration. Next, implement recurrence and exceptions against these semantics with provider-compatible fixtures. Reminder delivery needs its own Windows lifecycle design and real banner verification.
+The current acceptance bar is [account-integration readiness](INTEGRATION-MILESTONE.md). Native calendars, recurrence with exceptions, timezone semantics, session history, themes and view navigation are implemented locally. The shared core has three-way conflict planning, scoped paginated checkpoints and retry/write-precondition fixtures; provider clients and durable transactional sync persistence are not implemented yet.
+
+Once native QA and Windows package checks meet that bar, begin Google and Microsoft authorization and read-only calendar discovery, then implement guarded writes. Follow the [provider integration plan](docs/PROVIDER_INTEGRATION.md). Reminder delivery still needs its own Windows lifecycle design and observed banner verification. Do not delay beginning account integration for every remaining paid-calendar feature, and do not claim sync is complete from the planning tests.

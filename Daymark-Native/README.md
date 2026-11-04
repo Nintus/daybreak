@@ -2,7 +2,7 @@
 
 A real Windows desktop client built with C# and WPF on .NET 10. The UI uses Windows desktop controls; there is no Electron, Chromium, WebView, local web server, or Node.js process.
 
-This is the first native client, not feature parity with the JavaScript calendar. It supports a month grid, a selected-day agenda, creating/editing/deleting timed and all-day events, title/location/notes search, and native JSON backup/restore. It works without network access.
+This native preview supports named/color-coded calendars, month/week/day views, selected-day agendas, timed/all-day events, recurring series and exceptions, search, native JSON backup/restore, undo/redo and light/dark/system themes. It works without network access. It is not yet a replacement for every paid-calendar feature.
 
 Choose **Week** in the view switcher for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
 
@@ -16,15 +16,25 @@ The native interface uses a compact Month/Week/Day switcher, event previews in t
 
 Choose **Appearance → System setting**, **Light**, or **Dark**. Changes apply immediately, including menus, dropdowns, date popups and title bars. System mode follows the Windows app-color preference and refreshes on Windows preference notifications or app activation. Your choice is saved in `appearance.txt` beside the native calendar data; the test calendar has its own preference. Missing, invalid or unreadable preferences fall back to System without blocking calendar access. Calendar backups contain events, not appearance preferences. High contrast takes precedence and uses system control templates and colors; switching contrast while the app is open requires restarting it.
 
+## Calendars, repeating events and search
+
+Use **Manage calendars** to add, rename and recolor local calendars. Save applies the current name/color edit too. Only empty calendars can be removed; removing a calendar never silently deletes its events. Choose a calendar in the event editor. Moving an entire series moves its exception records too. Visibility checkboxes filter all views/search and are saved separately in `hidden-calendars.json`; they do not change event data or consume undo history. Names and colors are included in backups.
+
+The editor supports daily, weekly (including multiple weekdays), monthly date/ordinal-weekday/last-weekday, and yearly date repeats, with an interval, inclusive end date or up to 10,000 occurrences. Opening a repeating event asks whether to edit this occurrence or the entire series. A moved occurrence keeps its original identity; deleting one stores a skipped-occurrence exception. A series schedule change with exceptions requires explicit confirmation to reset those exceptions. Simple title/location/calendar changes preserve them. “This and following” splitting and a dedicated skipped-occurrence restoration screen are not implemented; session Undo can restore a skip.
+
+Monthly dates such as the 31st skip months without that date; February 29 skips non-leap years. Last-weekday repeats require a matching start date. Timed repeats keep the source local start clock and a fixed elapsed duration across DST. Nonexistent starts are skipped without consuming the occurrence count; repeated-hour starts use the seed's first/second choice when available, otherwise the first occurrence. All-day repeats preserve date duration. These are explicit local semantics, not a claim to support every provider/RFC recurrence rule.
+
+Search includes title, location and notes, honors hidden calendars, and returns up to 200 matches. Single appointments are searched across all dates; repeating events are searched from one month before the selected date through the next year. Results show dates, and the search header explains the recurrence window. Ctrl+G jumps directly to a date without stepping month by month.
+
 ## Time zones and daylight saving
 
 New timed events default to the current display zone. The editor stores an IANA timezone ID and UTC start/end instants. Displaying the calendar in another zone moves those events to the corresponding local date and time; editing still opens the original event zone. Choose **Device time zone (automatic)** to follow the computer's zone; it is refreshed when the app is activated. **Today** and date highlighting use the display zone. The display-zone choice is per session.
 
 The editor rejects a clock time skipped during a spring-forward transition. For a repeated hour, choose its first or second occurrence separately for the start and end. Display descriptions include UTC offsets to distinguish repeated times. Changing an event's zone in the editor keeps its entered clock values and changes its instants; changing the calendar's display zone never changes stored events.
 
-All-day events remain date ranges in every zone. **Floating** timed events keep their clock values everywhere. Existing version-1 events migrate as floating events because their original timezone was never recorded. Set a zone explicitly in the editor to anchor one. Migration does not rewrite a file merely by loading it. The first successful save writes version 2 and preserves the original in `calendar.json.v1.bak`; this migration backup is not rotated. The ordinary previous-save `.bak` continues separately. Export a backup before returning to an older native preview: older versions reject version-2 calendars and cannot read newly zoned events.
+All-day events remain date ranges in every zone. **Floating** timed events keep their clock values everywhere. Existing version-1 events migrate as floating events because their original timezone was never recorded. Set a zone explicitly in the editor to anchor one. Migration does not rewrite a file merely by loading it. The first successful save writes version 3 and preserves the original version-1 or version-2 file in `calendar.json.v1.bak` or `calendar.json.v2.bak`; this migration backup is not rotated. The ordinary previous-save `.bak` continues separately. Export a backup before returning to an older native preview: older previews reject version-3 calendars. Version 3 adds calendars, repeat rules and exception identities; do not downgrade your writable data file.
 
-The 24-hour timeline uses clock-time rows; repeated-hour occurrences share that part of the grid and are distinguished by offsets in descriptions. It is not a 25-row elapsed-hours view. UTC instants are authoritative for anchored non-recurring events; stored clock fields are snapshots. OS timezone data supplies conversion rules. Recurrence and provider sync require further work.
+The 24-hour timeline uses clock-time rows; repeated-hour occurrences share that part of the grid and are distinguished by offsets in descriptions. It is not a 25-row elapsed-hours view. UTC instants are authoritative for anchored non-recurring events; stored clock fields are snapshots. OS timezone data supplies conversion rules. Recurring series use their source wall-clock schedule and the seed event's elapsed duration; provider sync is not implemented.
 
 ## Run the prepared Windows build
 
@@ -47,9 +57,9 @@ Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous succes
 
 Closing the window exits the app. It does not install a startup service, remain in the tray, poll providers, or run reminder timers. A single-instance guard prevents ordinary duplicate launches in the same Windows session.
 
-Recurrence, reminders, tasks, ICS import/export, provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Reminders, tasks, ICS import/export, provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
 
-All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, and Escape to cancel the editor are available.
+All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, `Ctrl+F` for search, `Ctrl+G` for Go to Date, and Escape to cancel the editor are available.
 
 ## Build on Windows
 
@@ -76,7 +86,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 47 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets and legacy migration. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The shared core has 93 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 

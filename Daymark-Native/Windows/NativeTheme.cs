@@ -30,6 +30,7 @@ internal static class NativeTheme
             new System.Windows.Data.Binding(nameof(Swatch.Value)) { Source = swatch });
         brushes[key] = brush; return brush;
     }
+    public static Brush CalendarColor(string color) => Get(color switch { "Teal" => "Teal", "Violet" => "Violet", "Orange" => "Orange", "Rose" => "Rose", _ => "AccentInk" });
     public static Brush Background => Get("Background");
     public static Brush Error => Get("Error");
     public static Brush OnAccent => Get("OnAccent");
@@ -80,6 +81,7 @@ internal static class NativeTheme
             ["Line"] = ("#E5EAF1", "#354052"), ["Accent"] = ("#2563EB", "#78A7FF"),
             ["AccentInk"] = ("#2454A5", "#B5D0FF"), ["Soft"] = ("#EDF4FF", "#233752"),
             ["Subtle"] = ("#F8FAFD", "#1D2635"), ["Teal"] = ("#167269", "#83D8C8"),
+            ["Violet"] = ("#7240C8", "#CAB6FF"), ["Orange"] = ("#9F5000", "#F4B77A"), ["Rose"] = ("#AC315D", "#FFADC7"),
             ["TealSoft"] = ("#EAF6F2", "#193D3B"), ["Hover"] = ("#F1F5FB", "#2A3548"),
             ["Pressed"] = ("#E5EDF8", "#354660"), ["SelectedBorder"] = ("#99B9EE", "#78A7FF")
         };
@@ -87,7 +89,7 @@ internal static class NativeTheme
         {
             var brush = Get(key);
             var color = (Color)ColorConverter.ConvertFromString(IsDark ? pair.Dark : pair.Light);
-            if (SystemParameters.HighContrast) color = key is "Error" or "Ink" or "Muted" or "Line" or "AccentInk" or "Teal" ? SystemColors.WindowTextColor
+            if (SystemParameters.HighContrast) color = key is "Error" or "Ink" or "Muted" or "Line" or "AccentInk" or "Teal" or "Violet" or "Orange" or "Rose" ? SystemColors.WindowTextColor
                 : key == "OnAccent" ? SystemColors.HighlightTextColor : key is "Accent" or "SelectedBorder" ? SystemColors.HighlightColor : SystemColors.WindowColor;
             swatches[key].Value = color;
             Application.Current.Resources["Theme" + key] = brush;

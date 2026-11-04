@@ -8,7 +8,7 @@ namespace Daymark.Windows;
 
 public sealed partial class CalendarWindow
 {
-    private readonly TextBlock agendaCount = new() { Foreground = NativeTheme.Muted, FontSize = 12 };
+    private readonly TextBlock agendaCount = new() { Foreground = NativeTheme.Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel emptyAgenda = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock emptyTitle = new() { FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = NativeTheme.Ink, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 14, 0, 6) };
     private readonly TextBlock emptyDescription = new() { FontSize = 12, Foreground = NativeTheme.Muted, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 220 };
@@ -35,7 +35,7 @@ public sealed partial class CalendarWindow
 
         var menu = new Menu { Background = Brushes.Transparent, Foreground = NativeTheme.Muted, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         var file = new MenuItem { Header = "_File" };
-        file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N")); file.Items.Add(new Separator());
+        file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N")); file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("Save _backup…", Export, "Ctrl+B")); file.Items.Add(MenuAction("_Restore backup…", Restore));
         file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", Close)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
@@ -57,7 +57,7 @@ public sealed partial class CalendarWindow
         help.Items.Add(MenuAction("Time _zones", () => MessageBox.Show(this,
             "The display time zone changes how timed events appear. Each anchored event keeps its own source zone and UTC instants.\n\nFloating events keep their clock times in every zone. Choose a time zone in an event to anchor it. All-day events keep their dates.", "Time zones", MessageBoxButton.OK, MessageBoxImage.Information)));
         help.Items.Add(MenuAction("_About Daymark", () => MessageBox.Show(this,
-            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nSync, recurrence and reminders are not available yet.",
+            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nAccount sync and reminders are not available yet.",
             "About Daymark", MessageBoxButton.OK, MessageBoxImage.Information))); menu.Items.Add(help); preferences.Children.Add(menu);
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => NavigateHistory(false),
             (_, e) => { e.CanExecute = history.CanUndo; e.Handled = true; }));
@@ -81,7 +81,7 @@ public sealed partial class CalendarWindow
         search.Width = 195; search.MinWidth = 0; search.Tag = "Search events…"; search.FontSize = 13;
         search.ToolTip = "Search event titles, locations, and notes";
         System.Windows.Automation.AutomationProperties.SetName(search, "Search events");
-        search.TextChanged += (_, _) => RefreshAgenda(); actions.Children.Add(search);
+        search.TextChanged += (_, _) => { searchDelay.Stop(); searchDelay.Start(); }; actions.Children.Add(search);
         var create = Button("＋ _New event", (_, _) => NewEvent()); create.Style = NativeTheme.Style("PrimaryButton"); create.Padding = new Thickness(15, 9, 15, 9); actions.Children.Add(create);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         brand.Children.Add(new Border { Background = NativeTheme.Accent, Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 11, 0),
@@ -90,6 +90,10 @@ public sealed partial class CalendarWindow
         brand.Children.Add(new TextBlock { Text = "Daymark", FontSize = 25, Foreground = NativeTheme.Ink, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         if (testCalendar) brand.Children.Add(new TextBlock { Text = "TEST", Foreground = NativeTheme.Muted, FontSize = 10, FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }); header.Children.Add(brand);
+
+        var calendarsRow = new DockPanel { Margin = new Thickness(0, -8, 0, 14) }; DockPanel.SetDock(calendarsRow, Dock.Top); root.Children.Add(calendarsRow);
+        var manage = Button("Manage calendars…", (_, _) => ManageCalendars()); DockPanel.SetDock(manage, Dock.Right); calendarsRow.Children.Add(manage);
+        calendarsRow.Children.Add(new ScrollViewer { Content = calendarFilters, MaxHeight = 66, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
 
         var footer = new DockPanel { Margin = new Thickness(2, 12, 2, 0) }; DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
         footer.Children.Add(status);
@@ -137,7 +141,7 @@ public sealed partial class CalendarWindow
         var row = new FrameworkElementFactory(typeof(StackPanel));
         var title = new FrameworkElementFactory(typeof(TextBlock)); title.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Title"));
         title.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold); title.SetValue(TextBlock.FontSizeProperty, 13.0); title.SetValue(TextBlock.ForegroundProperty, NativeTheme.Ink); title.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap); row.AppendChild(title);
-        var time = new FrameworkElementFactory(typeof(TextBlock)); time.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding { Converter = new EventDescription() });
+        var time = new FrameworkElementFactory(typeof(TextBlock)); time.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding { Converter = new EventDescription(() => search.Text.Trim().Length > 0) });
         time.SetValue(TextBlock.FontSizeProperty, 12.0); time.SetValue(TextBlock.ForegroundProperty, NativeTheme.Muted); time.SetValue(TextBlock.MarginProperty, new Thickness(0, 6, 0, 0));
         time.SetValue(TextBlock.LineHeightProperty, 18.0); time.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap); row.AppendChild(time);
         if (SystemParameters.HighContrast)

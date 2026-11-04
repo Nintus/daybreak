@@ -64,6 +64,9 @@ public sealed partial class CalendarWindow : Window
     private readonly Button edit;
     private readonly Button delete;
     private bool refreshing;
+    private readonly System.Windows.Threading.DispatcherTimer searchDelay = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private readonly HashSet<string> hiddenCalendars = new(StringComparer.Ordinal);
+    private readonly System.Windows.Controls.WrapPanel calendarFilters = new();
 
     public CalendarWindow(CalendarStore store, CalendarDocument document, bool testCalendar = false)
     {
@@ -80,10 +83,14 @@ public sealed partial class CalendarWindow : Window
 
         edit = Button("_Edit event", (_, _) => Edit());
         delete = Button("_Delete", (_, _) => Delete());
-        BuildLayout(testCalendar); NativeTheme.Attach(this);
+        LoadViewPreferences(); BuildLayout(testCalendar); NativeTheme.Attach(this);
         InputBindings.Add(new KeyBinding(new ActionCommand(NewEvent), Key.N, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(Export), Key.B, ModifierKeys.Control));
         Activated += (_, _) => { NativeTheme.Refresh(); if (followDeviceZone) { TimeZoneInfo.ClearCachedData(); displayZone = TimeZoneInfo.Local; } Refresh(); };
+        searchDelay.Tick += (_, _) => { searchDelay.Stop(); RefreshAgenda(); };
+        Closed += (_, _) => searchDelay.Stop();
+        InputBindings.Add(new KeyBinding(new ActionCommand(() => { search.Focus(); search.SelectAll(); }), Key.F, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new ActionCommand(GoToDate), Key.G, ModifierKeys.Control));
         Refresh();
     }
     private static Button Button(string label, RoutedEventHandler action)
@@ -98,8 +105,21 @@ public sealed partial class CalendarWindow : Window
     }
     private void Refresh()
     {
+        try { RefreshView(); }
+        catch (Exception error) when (error is InvalidDataException or ArgumentOutOfRangeException)
+        {
+            refreshing = false; status.Text = error.Message;
+            calendarContent.Content = new TextBlock { Text = "This view could not be expanded. Choose a shorter date range or check the calendar data.", TextWrapping = TextWrapping.Wrap, Foreground = NativeTheme.Error };
+            agenda.ItemsSource = null;
+        }
+    }
+    private void RefreshView()
+    {
         refreshing = true;
-        displayed = document.InZone(displayZone);
+        var visibleFirst = viewMode == CalendarViewMode.Month ? month.AddDays(-(((int)month.DayOfWeek + 6) % 7))
+            : viewMode == CalendarViewMode.Day ? selected : WeekLayout.StartOfWeek(selected);
+        displayed = Recurrence.InRange(document, visibleFirst, viewMode == CalendarViewMode.Month ? 42 : viewMode == CalendarViewMode.Day ? 1 : 7, displayZone, hiddenCalendars);
+        CalendarPalette.Set(document.CalendarList); RefreshCalendarFilters();
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
         if (viewMode != CalendarViewMode.Month)
         {
@@ -142,33 +162,54 @@ public sealed partial class CalendarWindow : Window
     }
     private void RefreshAgenda()
     {
+        try { RefreshAgendaView(); }
+        catch (InvalidDataException error)
+        {
+            agenda.ItemsSource = null; agenda.Visibility = Visibility.Collapsed; emptyAgenda.Visibility = Visibility.Visible;
+            emptyTitle.Text = "Refine your search"; emptyDescription.Text = error.Message; edit.IsEnabled = delete.IsEnabled = false;
+        }
+    }
+    private void RefreshAgendaView()
+    {
         if (refreshing) return;
         var query = search.Text.Trim();
         dayTitle.Text = query.Length == 0 ? selected.ToString("dddd, MMM d") : "Search results";
-        var items = query.Length == 0 ? displayed.On(selected).ToList() : displayed.Events
-            .Where(e => (e.Title + "\n" + e.Location + "\n" + e.Notes).Contains(query, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Start).ToList();
+        var items = query.Length == 0 ? displayed.On(selected).ToList() : CalendarSearch.Find(document, query, selected, displayZone, hiddenCalendars).ToList();
         agenda.ItemsSource = items;
-        agendaCount.Text = $"{items.Count} {(query.Length > 0 ? "results" : items.Count == 1 ? "event" : "events")}";
+        agendaCount.Text = query.Length > 0 ? $"{items.Count}{(items.Count == 200 ? "+" : "")} results\nRepeats: past month + next year"
+            : $"{items.Count} {(items.Count == 1 ? "event" : "events")}";
         agenda.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         emptyAgenda.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         emptyTitle.Text = query.Length > 0 ? "No matching events" : "Nothing scheduled";
-        emptyDescription.Text = query.Length > 0 ? "Try another title, location, or note." : "Add an event to plan this day.";
+        emptyDescription.Text = query.Length > 0 ? "Try another title, location, or note. Repeating events are searched from one month ago through the next year." : hiddenCalendars.Count > 0 ? "Check your visible calendars or add an event." : "Add an event to plan this day.";
         edit.IsEnabled = delete.IsEnabled = false;
     }
     private void NewEvent() => ShowEditor(null);
     private void Edit() { if (agenda.SelectedItem is CalendarEvent item) ShowEditor(item); }
     private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null)
     {
-        if (original is not null) original = document.Events.Single(item => item.Id == original.Id);
+        if (original?.SeriesId is { } series)
+        {
+            var scope = new SeriesScopeDialog("Edit") { Owner = this };
+            if (scope.ShowDialog() != true) return;
+            original = scope.EntireSeries ? document.Events.Single(e => e.Id == series) : CalendarChanges.SourceOccurrence(document, original);
+        }
+        else if (original is not null) original = document.Events.Single(e => e.Id == original.Id);
         var draft = original;
+        var selectionBeforeEdit = selected;
         while (true)
         {
-            var editor = new EventEditor(selected, draft, initialTime, displayZone) { Owner = this };
+            var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, document.CalendarList.FirstOrDefault(c => !hiddenCalendars.Contains(c.Id))?.Id) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
-            var events = document.Events.Where(e => e.Id != draft.Id).ToList(); events.Add(draft);
-            if (!Save(new CalendarDocument(2, events), original is null ? "create event" : "edit event")) continue;
-            selected = DateOnly.FromDateTime(CalendarTime.InZone(draft, displayZone).Start); month = new(selected.Year, selected.Month, 1);
+            var reset = original is not null && document.Events.Any(e => e.SeriesId == original.Id) && CalendarChanges.ScheduleChanged(original, draft);
+            if (reset && MessageBox.Show(this, "Changing this series schedule resets its individual occurrence changes and skipped occurrences. Continue? You can undo the whole change.",
+                "Change series schedule", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) continue;
+            CalendarDocument next;
+            try { next = CalendarChanges.SaveEvent(document, draft, reset); }
+            catch (Exception error) { MessageBox.Show(this, error.Message, "Invalid event", MessageBoxButton.OK, MessageBoxImage.Warning); continue; }
+            if (!Save(next, original is null ? "create event" : draft.SeriesId is not null ? "edit occurrence" : "edit event")) continue;
+            selected = original is not null && draft.Recurrence is not null ? selectionBeforeEdit : DateOnly.FromDateTime(CalendarTime.InZone(draft, displayZone).Start); month = new(selected.Year, selected.Month, 1);
             search.Clear(); Refresh(); agenda.Focus(); return;
         }
     }
@@ -196,8 +237,18 @@ public sealed partial class CalendarWindow : Window
     private void Delete()
     {
         if (agenda.SelectedItem is not CalendarEvent item) return;
-        if (MessageBox.Show(this, $"Delete “{item.Title}”?", "Delete event", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        if (Save(new CalendarDocument(2, document.Events.Where(e => e.Id != item.Id).ToList()), "delete event")) Refresh();
+        var entire = true;
+        if (item.SeriesId is not null)
+        {
+            var scope = new SeriesScopeDialog("Delete") { Owner = this };
+            if (scope.ShowDialog() != true) return;
+            entire = scope.EntireSeries;
+        }
+        var label = item.SeriesId is not null ? entire ? "the entire repeating series" : "this occurrence" : $"“{item.Title}”";
+        if (MessageBox.Show(this, $"Delete {label}? You can undo this change.", "Delete event", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        var next = item.SeriesId is not null && !entire ? CalendarChanges.CancelOccurrence(document, item)
+            : CalendarChanges.DeleteEventOrSeries(document, item.SeriesId ?? item.Id);
+        if (Save(next, entire ? "delete event or series" : "skip occurrence")) Refresh();
     }
     private void Export()
     {
@@ -209,7 +260,8 @@ public sealed partial class CalendarWindow : Window
     }
     private bool SameDataPath(string path) => string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".bak"), StringComparison.OrdinalIgnoreCase)
-        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase);
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v2.bak"), StringComparison.OrdinalIgnoreCase);
     private void Restore()
     {
         var picker = new OpenFileDialog { Filter = "Daymark native backup (*.json)|*.json" };
@@ -224,12 +276,12 @@ public sealed partial class CalendarWindow : Window
     }
 }
 
-public sealed class EventDescription : System.Windows.Data.IValueConverter
+public sealed class EventDescription(Func<bool>? includeDate = null) : System.Windows.Data.IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
     {
         var e = (CalendarEvent)value;
-        return EventPresentation.Summary(e) + (string.IsNullOrWhiteSpace(e.Location) ? "" : $"\n{e.Location}");
+        return (includeDate?.Invoke() == true ? $"{e.Start:ddd, MMM d, yyyy}\n" : "") + EventPresentation.Summary(e) + $"\n{CalendarPalette.Name(e.CalendarId)}" + (e.SeriesId is null ? "" : " · Repeating") + (string.IsNullOrWhiteSpace(e.Location) ? "" : $"\n{e.Location}");
     }
     public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
 }

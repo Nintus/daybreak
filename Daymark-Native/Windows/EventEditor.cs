@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -21,15 +22,17 @@ public sealed class EventEditor : Window
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBlock error = new() { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap };
 
-    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null)
+    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null)
     {
         NativeTheme.Attach(this);
         Title = original is null ? "New event" : "Edit event";
-        Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
-        ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Width = 560; Height = Math.Min(860, SystemParameters.WorkArea.Height - 32); MinWidth = 500;
+        MinHeight = Math.Min(480, Height); MaxHeight = SystemParameters.WorkArea.Height;
+        ResizeMode = ResizeMode.CanResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI"); FontSize = 14;
         Background = NativeTheme.Surface; Foreground = NativeTheme.Ink;
-        var panel = new StackPanel { Margin = new Thickness(22) }; Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var root = new DockPanel(); Content = root;
+        var panel = new StackPanel { Margin = new Thickness(22, 16, 22, 8) }; root.Children.Add(new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         panel.Children.Add(new TextBlock { Text = Title, FontSize = 24, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
         Label Field(string label, Control input, Panel? container = null)
         {
@@ -51,7 +54,15 @@ public sealed class EventEditor : Window
         {
             if (date.Template.FindName("PART_TextBox", date) is DatePickerTextBox text) text.Style = NativeTheme.Style("DateField");
         };
-        Field("_Title", title);
+        foreach (var date in new[] { startDate, endDate }) date.DateValidationError += (_, args) =>
+        {
+            args.ThrowException = false; date.SelectedDate = null; error.Text = "Choose a valid start and end date.";
+        };
+        calendars ??= [CalendarDefinition.Personal];
+        var calendar = new ComboBox { ItemsSource = calendars, DisplayMemberPath = "Name", SelectedValuePath = "Id",
+            SelectedValue = original?.CalendarId ?? defaultCalendarId ?? calendars[0].Id, IsEnabled = original?.SeriesId is null };
+        System.Windows.Automation.AutomationProperties.SetName(calendar, "Event calendar");
+        Field("_Title", title); Field("_Calendar", calendar);
         DateAndTime("Start _date", startDate, "Start ti_me · 24-hour", startTime);
         DateAndTime("End da_te", endDate, "End tim_e · 24-hour", endTime);
         allDay.Margin = new Thickness(0, 14, 0, 0); panel.Children.Add(allDay);
@@ -65,15 +76,18 @@ public sealed class EventEditor : Window
         var endOccurrenceLabel = Field("End occurrence — this hour happens twice", endOccurrence);
         panel.Children.Add(new TextBlock { Text = "Floating events keep the entered clock time in every display zone.",
             FontSize = 12, Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
+        var recurrence = new RecurrenceFields(original?.Recurrence, original?.Start ?? selected.ToDateTime(TimeOnly.MinValue), original?.SeriesId is not null);
+        panel.Children.Add(recurrence);
+        startDate.SelectedDateChanged += (_, _) => { if (startDate.SelectedDate is { } repeatStart) recurrence.UpdateStart(repeatStart); };
         Field("_Location", location); Field("_Notes", notes); panel.Children.Add(error);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
         var save = new Button { Content = "_Save event", IsDefault = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
         save.Style = NativeTheme.Style("PrimaryButton");
-        actions.Children.Add(cancel); actions.Children.Add(save); panel.Children.Add(actions);
+        actions.Children.Add(cancel); actions.Children.Add(save); actions.Margin = new Thickness(22, 10, 22, 18); DockPanel.SetDock(actions, Dock.Bottom); root.Children.Insert(0, actions);
         defaultZone ??= TimeZoneInfo.Local;
         var sourceZone = original?.TimeZoneId is string id ? CalendarTime.FindZone(id) : defaultZone;
-        var sourceEvent = original is null ? null : CalendarTime.InZone(original, sourceZone);
+        var sourceEvent = original is null ? null : original.Recurrence is not null ? original : CalendarTime.InZone(original, sourceZone);
         var start = sourceEvent?.Start ?? selected.ToDateTime(initialTime ?? new TimeOnly(9, 0));
         var end = sourceEvent?.End ?? start.AddHours(1);
         title.Text = original?.Title ?? ""; location.Text = original?.Location ?? ""; notes.Text = original?.Notes ?? "";
@@ -114,6 +128,7 @@ public sealed class EventEditor : Window
             {
                 if (startDate.SelectedDate is not DateTime from || endDate.SelectedDate is not DateTime to)
                     throw new InvalidOperationException("Choose valid start and end dates.");
+                if (from.Year is < 2 or > 9998 || to.Year is < 2 or > 9998) throw new InvalidDataException("Choose dates between years 2 and 9998.");
                 TimeOnly fromTime = TimeOnly.MinValue, toTime = TimeOnly.MinValue;
                 if (allDay.IsChecked != true && (!TimeOnly.TryParseExact(startTime.Text.Trim(), "HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out fromTime)
                     || !TimeOnly.TryParseExact(endTime.Text.Trim(), "HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out toTime)))
@@ -126,7 +141,10 @@ public sealed class EventEditor : Window
                     toClock = CalendarTime.KeepSubminutePrecision(toClock, sourceEvent?.End);
                 }
                 var item = new CalendarEvent(original?.Id ?? Guid.NewGuid(), title.Text.Trim(), fromClock,
-                    toClock, allDay.IsChecked == true, location.Text.Trim(), notes.Text);
+                    toClock, allDay.IsChecked == true, location.Text.Trim(), notes.Text,
+                    CalendarId: (string?)calendar.SelectedValue ?? calendars[0].Id,
+                    Recurrence: original?.SeriesId is null ? recurrence.Read(fromClock) : null,
+                    SeriesId: original?.SeriesId, OriginalStart: original?.OriginalStart);
                 if (!item.AllDay && zone.SelectedItem is not ZoneChoice) throw new InvalidOperationException("Choose an event time zone or Floating.");
                 if (!item.AllDay && zone.SelectedItem is ZoneChoice { Id: not null } choice)
                     item = CalendarTime.Anchor(item, CalendarTime.FindZone(choice.Id),
@@ -134,7 +152,7 @@ public sealed class EventEditor : Window
                         endOccurrence.SelectedIndex > 0 ? (RepeatedTimeChoice)(endOccurrence.SelectedIndex - 1) : null);
                 item.Validate(); Result = item; DialogResult = true;
             }
-            catch (Exception problem) { error.Text = problem.Message; }
+            catch (Exception problem) { error.Text = problem.Message; error.BringIntoView(); }
         };
     }
     private static ComboBox OccurrencePicker() => new() { ItemsSource = new[] { "Choose an occurrence…", "First occurrence (earlier instant)", "Second occurrence (later instant)" }, SelectedIndex = 0 };
