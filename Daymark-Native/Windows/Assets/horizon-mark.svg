@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Daymark Horizon</title>
+  <defs><mask id="cuts"><rect width="64" height="64" fill="white"/><path d="M14 34 A18 18 0 0 1 50 34Z" fill="black"/><path d="M6 34H58V36H6Z" fill="black"/></mask></defs>
+  <path d="M6 4H28C65 4 65 60 28 60H6Z" fill="#7C83FF" mask="url(#cuts)"/>
+</svg>

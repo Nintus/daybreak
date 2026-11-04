@@ -13,8 +13,13 @@ or calendar.json.v2.bak. Older previews cannot read version-3 calendars.
 
 This preview supports timezone-aware events, month/week/day
 views, calendars with colors/visibility, recurring events and exceptions, search,
-undo/redo, themes and backup/restore. It does not yet support reminders, account
-sync, or importing existing web calendar data.
+undo/redo, Horizon branding, Theme studio and backup/restore. Google/Microsoft
+manual read-only sync requires your OAuth setup (see docs/ACCOUNT_SETUP.md).
+Two-way editing, reminders and importing web calendar data are not implemented.
+
+For isolated testing, use the Open Test Calendar shortcut when provided, or run:
+Daymark.exe --test-calendar
+This keeps test events/preferences separate from your personal calendar.
 
 This package is unsigned. Read docs/CODE_SIGNING.md and docs/PRIVACY.md.
 SignPath acceptance and signing integration are pending.

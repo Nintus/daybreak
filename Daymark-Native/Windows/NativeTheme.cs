@@ -100,7 +100,7 @@ internal static class NativeTheme
             _ => ThemeBase.Dark
         };
         IsDark = basis != ThemeBase.Light && !SystemParameters.HighContrast;
-        var accent = Mode switch { AppThemeMode.Ocean => "#54BCF5", AppThemeMode.Forest => "#63C4A0", AppThemeMode.Rose => "#E9A1BE", AppThemeMode.Custom => Settings.Accent, _ => "#7986FF" };
+        var accent = Mode switch { AppThemeMode.Ocean => "#54BCF5", AppThemeMode.Forest => "#63C4A0", AppThemeMode.Rose => "#E9A1BE", AppThemeMode.Custom => Settings.Accent, _ => HorizonBrand.Primary };
         var colors = ThemePalette.Build(basis, accent);
         var changed = false;
         foreach (var (key, paletteColor) in colors)
@@ -118,6 +118,7 @@ internal static class NativeTheme
     }
     public static void Attach(Window window)
     {
+        window.Icon ??= HorizonBrand.Icon;
         void UpdateTitleBar()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;

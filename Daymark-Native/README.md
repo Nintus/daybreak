@@ -121,3 +121,7 @@ Navigation, settled search results and newly opened windows use a subtle 120 ms 
 Windows client-area animation and high-contrast preferences take priority. **Appearance → Reduce motion** also disables transitions and stops active ones immediately; this preference is saved separately in motion.txt. Theme-color previews remain immediate. Selecting another day inside the current month updates the existing grid and agenda, preserving focus rather than rebuilding all 42 day buttons.
 
 Windows CI tests motion policy, replacement/cleanup and selection reuse. Actual motion feel on the target PC still needs a signed build and visual verification; the existing Smart App Control blocker remains.
+
+## Horizon identity
+
+The app header, window/taskbar icon and default accent now use the Horizon sunrise-D identity. The wordmark uses bundled Manrope SemiBold; interface text stays in Segoe UI. Existing saved themes and named calendar colors are retained. [Brand source and palette](docs/BRAND.md) document the editable mark, icon generation and font license.
