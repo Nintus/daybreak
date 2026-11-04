@@ -57,7 +57,9 @@ Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous succes
 
 Closing the window exits the app. It does not install a startup service, remain in the tray, poll providers, or run reminder timers. A single-instance guard prevents ordinary duplicate launches in the same Windows session.
 
-Reminders, tasks, ICS import/export, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Use **File → Import from another app…** to review discovered Fantastical, classic Outlook and Thunderbird account identities, compatible settings, and local .ics files. Imported Google/Microsoft profiles appear in **Calendar accounts** with sign-in hints; iCloud/CalDAV profiles are listed pending provider support. Add exported .ics files manually when a source uses a private database. See [migration support and limits](docs/IMPORT.md).
+
+Reminders, tasks, ICS export, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
 
 All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, `Ctrl+F` for search, `Ctrl+G` for Go to Date, and Escape to cancel the editor are available.
 

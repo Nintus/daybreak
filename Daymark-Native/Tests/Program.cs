@@ -304,6 +304,7 @@ try
     RecurrenceTests.Run(Test, Check, Reject, folder);
     SyncPlanningTests.Run(Test, Check, Reject);
     ProviderTests.Run(Test, Check, Reject, folder);
+    MigrationTests.Run(Test, Check, Reject, folder);
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
     Console.WriteLine($"{count} tests passed");
 }

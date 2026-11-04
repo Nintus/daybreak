@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Daymark.Core;
 using Daymark.Providers;
+using Daymark.Migration;
 
 namespace Daymark.Windows;
 
@@ -53,6 +54,18 @@ internal sealed class AccountsDialog : Window
     private void Render(IReadOnlyList<(ConnectedAccount Account, List<RemoteCalendar> Calendars)> accounts)
     {
         rows.Children.Clear();
+        foreach (var draft in service.ImportedAccounts.Read())
+        {
+            var section = new StackPanel { Margin = new Thickness(12) };
+            rows.Children.Add(new Border { Child = section, Background = NativeTheme.Surface, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 0, 12) });
+            section.Children.Add(new TextBlock { Text = draft.Name, FontSize = 17, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            section.Children.Add(new TextBlock { Text = $"{draft.Login} · {draft.Provider}\nImported from {draft.Source} · Sign-in required", TextWrapping = TextWrapping.Wrap, Foreground = NativeTheme.Muted, Margin = new Thickness(0, 6, 0, 8) });
+            var actions = new WrapPanel(); section.Children.Add(actions);
+            if (draft.Provider is "Google" or "Unknown") Add(actions, "Sign in with Google", () => Run(ct => service.ConnectAsync(CalendarProviderKind.Google, ct, draft)));
+            if (draft.Provider is "Microsoft" or "Unknown") Add(actions, "Sign in with Microsoft", () => Run(ct => service.ConnectAsync(CalendarProviderKind.Microsoft, ct, draft)));
+            if (draft.Provider is "iCloud" or "CalDAV") section.Children.Add(new TextBlock { Text = "Profile saved. Connecting iCloud and other CalDAV accounts is not available yet.", TextWrapping = TextWrapping.Wrap, Foreground = NativeTheme.Muted });
+            Add(actions, "Remove profile", () => Run(_ => { service.ImportedAccounts.Remove(draft.Id); return Task.CompletedTask; }));
+        }
         if (accounts.Count == 0) rows.Children.Add(new TextBlock { Text = "No accounts connected. Open Account setup to configure your OAuth applications, then connect a provider.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 14) });
         foreach (var (account, calendars) in accounts)
         {

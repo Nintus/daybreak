@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Daymark.Core;
 using Daymark.Windows;
+using Daymark.Migration;
 
 internal static class Program
 {
@@ -97,11 +98,54 @@ internal static class Program
                 "Google token material and expiry survive the protected store round trip");
             using var dialog = new WindowLifetime(new AccountsDialog(new AccountService(folder)));
             Check(dialog.Window.Content is DockPanel, "native account manager constructs with an isolated cache");
+            var draft = ImportIdentity.Account("Thunderbird", "Work", "fixture@outlook.com", "")!;
+            var migrationFolder = Path.Combine(folder, "migration"); Directory.CreateDirectory(migrationFolder);
+            var ics = Path.Combine(migrationFolder, "fixture.ics");
+            File.WriteAllText(ics, "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:fixture\nSUMMARY:Imported planning\nDTSTART:20261104T090000\nDTEND:20261104T100000\nEND:VEVENT\nEND:VCALENDAR");
+            var importedDocument = CalendarDocument.Empty(); var importSaves = 0;
+            var appearanceBeforeImport = NativeTheme.Settings;
+            var report = new DiscoveryReport([draft], [ics], [new("Thunderbird", "Dark"), new("Fantastical", DefaultDurationMinutes: 45)], ["Synthetic migration preview"]);
+            using (var importer = new WindowLifetime(new ImportDialog(migrationFolder, () => importedDocument, next => { importedDocument = next; importSaves++; return true; }, () => report)))
+            {
+                importer.Window.Show();
+                var type = typeof(ImportDialog);
+                bool Idle() => importer.Window.IsLoaded && !(bool)type.GetField("busy", flags)!.GetValue(importer.Window)!;
+                PumpUntil(Idle);
+                var profileRows = (StackPanel)type.GetField("profiles", flags)!.GetValue(importer.Window)!;
+                var fileRows = (StackPanel)type.GetField("files", flags)!.GetValue(importer.Window)!;
+                var importButton = (Button)type.GetField("apply", flags)!.GetValue(importer.Window)!;
+                Check(profileRows.Children.Count == 1 && fileRows.Children.Count == 1 && importSaves == 0 && !File.Exists(Path.Combine(migrationFolder, "imported-accounts.json")), "migration preview lists identities and ICS without persisting them");
+                Check(NativeTheme.Settings == appearanceBeforeImport, "discovered appearance never changes the theme before import");
+                ((ComboBox)type.GetField("theme", flags)!.GetValue(importer.Window)!).SelectedIndex = 1;
+                ((ComboBox)type.GetField("duration", flags)!.GetValue(importer.Window)!).SelectedIndex = 1;
+                importer.Window.Dispatcher.Invoke(() => importButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+                PumpUntil(Idle);
+                Check(importSaves == 1 && importedDocument.Events.Single().Title == "Imported planning" && new AccountDraftStore(Path.Combine(migrationFolder, "imported-accounts.json")).Read().Single() == draft && NativeTheme.Mode == AppThemeMode.Dark && new EventDefaults(migrationFolder).Minutes == 45, "selected migration persists events, sign-in drafts and compatible settings");
+                importer.Window.Dispatcher.Invoke(() => importButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+                PumpUntil(Idle);
+                Check(importSaves == 1 && importedDocument.Events.Count == 1, "repeating import does not duplicate events or re-save the calendar");
+            }
+            var migratedAccounts = new AccountsDialog(new AccountService(migrationFolder));
+            typeof(AccountsDialog).GetMethod("Render", flags)!.Invoke(migratedAccounts, [Array.Empty<(Daymark.Providers.ConnectedAccount, List<RemoteCalendar>)>()]);
+            var accountRows = (StackPanel)typeof(AccountsDialog).GetField("rows", flags)!.GetValue(migratedAccounts)!;
+            Check(accountRows.Children.OfType<Border>().Count() == 1, "imported account appears in the account manager before sign-in"); migratedAccounts.Close();
+            using (var editor = new WindowLifetime(new EventEditor(new(2026, 11, 4), null, new(9, 0), defaultDurationMinutes: new EventDefaults(migrationFolder).Minutes)))
+            {
+                var endField = (TextBox)typeof(EventEditor).GetField("endTime", flags)!.GetValue(editor.Window)!;
+                Check(endField.Text == "09:45", "new-event editor uses the imported default duration");
+            }
             window.Close(); app.Shutdown();
-            Console.WriteLine("22 Windows checks passed");
+            Console.WriteLine("28 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
     private static void Check(bool result, string name) { if (!result) throw new Exception(name); Console.WriteLine("PASS " + name); }
+    private static void PumpUntil(Func<bool> done)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame(); var expiry = DateTime.UtcNow.AddSeconds(10);
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
+        timer.Tick += (_, _) => { if (done() || DateTime.UtcNow > expiry) { timer.Stop(); frame.Continue = false; } }; timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame); if (!done()) throw new Exception("Migration operation timed out");
+    }
     private sealed class WindowLifetime(Window window) : IDisposable { public Window Window => window; public void Dispose() => window.Close(); }
 }
