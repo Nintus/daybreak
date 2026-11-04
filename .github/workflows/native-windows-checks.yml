@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['Daymark-Native/**', 'LICENSE', 'README.md', '.github/workflows/native-windows-checks.yml']
   push:
-    branches: ['main', 'native/windows-foundation', 'native/week-view', 'native/signing-readiness', 'native/day-and-history', 'native/time-zones', 'native/visual-refresh', 'native/integration-readiness']
+    branches: ['main', 'native/windows-foundation', 'native/week-view', 'native/signing-readiness', 'native/day-and-history', 'native/time-zones', 'native/visual-refresh', 'native/integration-readiness', 'native/provider-sync']
     paths: ['Daymark-Native/**', 'LICENSE', 'README.md', '.github/workflows/native-windows-checks.yml']
   workflow_dispatch:
 permissions:
@@ -19,6 +19,8 @@ jobs:
           dotnet-version: '10.0.403'
       - name: Test calendar core
         run: dotnet run --project Daymark-Native/Tests/Daymark.Tests.csproj -c Release
+      - name: Test native efficiency and protected account storage
+        run: dotnet run --project Daymark-Native/WindowsChecks/Daymark.WindowsChecks.csproj -c Release
       - name: Publish identifiable Windows build
         run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -p:SourceRevisionId=${{ github.sha }} -o artifacts/windows
       - name: Include application and runtime licenses
@@ -27,6 +29,7 @@ jobs:
           $licenses = 'artifacts/windows/licenses'
           New-Item -ItemType Directory -Force $licenses | Out-Null
           Copy-Item LICENSE "$licenses/Daymark-LICENSE.txt"
+          ./Daymark-Native/Build/Copy-DependencyLicenses.ps1 -AssetsPath Daymark-Native/Windows/obj/project.assets.json -Destination $licenses
           foreach ($package in @('microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64')) {
             $packageRoot = Join-Path $env:USERPROFILE ".nuget/packages/$package"
             $version = Get-ChildItem $packageRoot -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
@@ -35,11 +38,14 @@ jobs:
               Copy-Item $_.FullName (Join-Path $licenses "$package-$($_.Name)")
             }
           }
+      - name: Measure unattended test-calendar idle CPU
+        shell: pwsh
+        run: ./Daymark-Native/Build/Measure-Idle.ps1 -Executable artifacts/windows/Daymark.exe -OutputPath artifacts/idle-cpu.json
       - name: Verify metadata, documentation and checksums
         shell: pwsh
         run: ./Daymark-Native/Build/Verify-Package.ps1 -PackagePath artifacts/windows -Commit '${{ github.sha }}' -RunId '${{ github.run_id }}'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Daymark-Windows-${{ github.sha }}
-          path: artifacts/windows/
+          path: artifacts/
           retention-days: 14

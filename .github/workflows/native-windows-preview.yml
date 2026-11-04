@@ -23,6 +23,8 @@ jobs:
           dotnet-version: 10.0.403
       - name: Test calendar and storage on Windows
         run: dotnet run --project Daymark-Native/Tests/Daymark.Tests.csproj -c Release
+      - name: Test native efficiency and protected account storage
+        run: dotnet run --project Daymark-Native/WindowsChecks/Daymark.WindowsChecks.csproj -c Release
       - name: Publish self-contained Windows app
         run: dotnet publish Daymark-Native/Windows/Daymark.Windows.csproj -c Release -r win-x64 --self-contained true -p:SourceRevisionId=${{ github.sha }} -o staging/Daymark-Native-Windows
       - name: Package app, source, and licenses
@@ -31,6 +33,7 @@ jobs:
           $licenses = 'staging/Daymark-Native-Windows/licenses'
           New-Item -ItemType Directory -Force $licenses | Out-Null
           Copy-Item LICENSE "$licenses/Daymark-LICENSE.txt"
+          ./Daymark-Native/Build/Copy-DependencyLicenses.ps1 -AssetsPath Daymark-Native/Windows/obj/project.assets.json -Destination $licenses
           foreach ($package in @('microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64')) {
             $packageRoot = Join-Path $env:USERPROFILE ".nuget/packages/$package"
             $version = Get-ChildItem $packageRoot -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1

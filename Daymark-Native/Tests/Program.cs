@@ -303,6 +303,7 @@ try
     Test("corrupt file is not overwritten on load", () => { File.WriteAllText(store.Path, "bad json"); try { store.Load(); throw new Exception("Expected failure"); } catch (System.Text.Json.JsonException) { } Check(File.ReadAllText(store.Path) == "bad json"); });
     RecurrenceTests.Run(Test, Check, Reject, folder);
     SyncPlanningTests.Run(Test, Check, Reject);
+    ProviderTests.Run(Test, Check, Reject, folder);
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
     Console.WriteLine($"{count} tests passed");
 }

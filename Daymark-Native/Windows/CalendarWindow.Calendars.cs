@@ -9,10 +9,10 @@ public sealed partial class CalendarWindow
     private string? filterSignature;
     private void RefreshCalendarFilters()
     {
-        var signature = string.Join("\n", document.CalendarList.Select(c => $"{c.Id}|{c.Name}|{c.Color}|{hiddenCalendars.Contains(c.Id)}"));
+        var signature = string.Join("\n", ViewDocument.CalendarList.Select(c => $"{c.Id}|{c.Name}|{c.Color}|{hiddenCalendars.Contains(c.Id)}"));
         if (signature == filterSignature) return;
         filterSignature = signature; calendarFilters.Children.Clear();
-        foreach (var calendar in document.CalendarList)
+        foreach (var calendar in ViewDocument.CalendarList)
         {
             var label = new StackPanel { Orientation = Orientation.Horizontal };
             label.Children.Add(new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4), Background = NativeTheme.CalendarColor(calendar.Color), Margin = new Thickness(0, 0, 7, 0) });
@@ -44,7 +44,7 @@ public sealed partial class CalendarWindow
         {
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ViewPreferencesPath)!);
             var temporary = ViewPreferencesPath + ".tmp";
-            System.IO.File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(hiddenCalendars.Where(id => document.CalendarList.Any(c => c.Id == id)).ToArray()));
+            System.IO.File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(hiddenCalendars.Where(id => ViewDocument.CalendarList.Any(c => c.Id == id)).ToArray()));
             System.IO.File.Move(temporary, ViewPreferencesPath, true);
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)

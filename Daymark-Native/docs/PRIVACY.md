@@ -1,12 +1,20 @@
 # Privacy policy — native Windows preview
 
-This policy describes `Daymark-Native`, the C# / WPF client. It does not describe the older web/Electron prototype or planned connected-account features.
+This policy describes `Daymark-Native` version 0.9, the C# / WPF client, including optional Google and Microsoft read-only connections. It does not describe the older web/Electron prototype.
 
 ## Calendar data
 
 The current client stores event titles, dates/times, timezones/UTC instants for anchored timed events, locations and notes locally in `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful save is `calendar.json.bak`. Migration from version 1 also preserves `calendar.json.v1.bak`. The optional `--test-calendar` profile instead stores synthetic QA data in `TestCalendar` beside the executable. These files are not encrypted by Daymark; access depends on your Windows account and device protections.
 
-The native client currently implements no analytics, advertising, automatic crash uploads, account connection, background provider sync or automatic updater. Its current application code makes no network requests. Proposed account and sync features require a policy update before release.
+The native client implements no analytics, advertising, automatic crash uploads or automatic updater. Local calendar use does not require network access. Connecting an account opens your system browser for Google or Microsoft authorization. Manual refresh sends authenticated calendar-list and event queries to that provider. Authentication libraries also contact provider token endpoints when obtaining or refreshing credentials. Daymark does not send calendar data to a Daymark server.
+
+## Connected accounts
+
+Connection metadata, selected calendars, date coverage, downloaded events and original provider payloads are stored locally in `accounts.sqlite` beside your local calendar. Provider payloads can include attendee, organizer, meeting link, invitation and description details beyond the displayed projection. This cache is not encrypted by Daymark; access depends on Windows/device protections. It is separate from local event backups and undo history. Connected events are read-only in this preview; Daymark makes no calendar-write API requests.
+
+OAuth application settings and token caches live in the `credentials` subfolder, protected with Windows DPAPI for the current Windows user. They are not included in JSON backup exports or application packages. Never share that directory. Your account password is entered on the provider's sign-in page and is not collected by Daymark. Provider authorization, consent and account policies are handled by Google or Microsoft.
+
+Refresh is manual, covers a bounded date range and retains the previous cache on failure. There is no periodic polling or background service. Disconnect removes that connection's local cache and saved tokens; it does not remove server calendar events or revoke the provider's authorization grant. Authorization can be revoked through the provider's account controls. See [account setup and sync behavior](ACCOUNT_SETUP.md).
 
 ## Backups and sharing
 

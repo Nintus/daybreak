@@ -2,9 +2,9 @@
 
 An open-source calendar, built Windows first with C# and WPF. The portable calendar core is separate from the Windows interface. The goal is a dependable primary calendar with a native feel.
 
-The native preview supports named calendars with colors and visibility, timed events with timezones, all-day events, recurring series with individual exceptions, month/week/day views, search, JSON backups, session undo/redo and light/dark/system themes. Account authorization/sync and reminders remain planned. See the [native client guide](Daymark-Native/README.md) and [roadmap](Daymark-Native/ROADMAP.md).
+The native preview supports named calendars with colors and visibility, timed events with timezones, all-day events, recurring series with individual exceptions, month/week/day views, search, JSON backups, session undo/redo and light/dark/system themes. Version 0.9 adds Google/Microsoft browser authorization and manual read-only sync with an offline cache; it requires your OAuth registrations and live-account validation. Two-way editing and reminders remain planned. See the [native client guide](Daymark-Native/README.md) and [roadmap](Daymark-Native/ROADMAP.md).
 
-The active milestone is [account-integration readiness](Daymark-Native/INTEGRATION-MILESTONE.md), followed by Google and Microsoft account integration. The [provider integration plan](Daymark-Native/docs/PROVIDER_INTEGRATION.md) records the tested sync-planning boundary and the work still needed for real accounts.
+The active work is CPU efficiency and the first Google/Microsoft sync stage. [Account setup](Daymark-Native/docs/ACCOUNT_SETUP.md) describes registrations and current limits. The [provider integration plan](Daymark-Native/docs/PROVIDER_INTEGRATION.md) records the tested sync-planning boundary and the work still needed for real accounts.
 
 ## Downloads
 

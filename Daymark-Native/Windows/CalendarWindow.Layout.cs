@@ -36,6 +36,7 @@ public sealed partial class CalendarWindow
         var menu = new Menu { Background = Brushes.Transparent, Foreground = NativeTheme.Muted, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         var file = new MenuItem { Header = "_File" };
         file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N")); file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
+        file.Items.Add(MenuAction("Calendar _accounts…", ManageAccounts)); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("Save _backup…", Export, "Ctrl+B")); file.Items.Add(MenuAction("_Restore backup…", Restore));
         file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", Close)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
@@ -57,7 +58,7 @@ public sealed partial class CalendarWindow
         help.Items.Add(MenuAction("Time _zones", () => MessageBox.Show(this,
             "The display time zone changes how timed events appear. Each anchored event keeps its own source zone and UTC instants.\n\nFloating events keep their clock times in every zone. Choose a time zone in an event to anchor it. All-day events keep their dates.", "Time zones", MessageBoxButton.OK, MessageBoxImage.Information)));
         help.Items.Add(MenuAction("_About Daymark", () => MessageBox.Show(this,
-            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nAccount sync and reminders are not available yet.",
+            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nGoogle/Microsoft read-only sync requires your OAuth app setup. Two-way editing and reminders are not available yet.",
             "About Daymark", MessageBoxButton.OK, MessageBoxImage.Information))); menu.Items.Add(help); preferences.Children.Add(menu);
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => NavigateHistory(false),
             (_, e) => { e.CanExecute = history.CanUndo; e.Handled = true; }));
@@ -135,7 +136,12 @@ public sealed partial class CalendarWindow
             Child = new TextBlock { Text = "\uE787", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 23, Foreground = NativeTheme.Muted,
                 VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } });
         emptyAgenda.Children.Add(emptyTitle); emptyAgenda.Children.Add(emptyDescription); agendaHost.Children.Add(emptyAgenda);
-        agenda.SelectionChanged += (_, _) => { edit.IsEnabled = delete.IsEnabled = agenda.SelectedItem is CalendarEvent; };
+        agenda.SelectionChanged += (_, _) =>
+        {
+            var connected = agenda.SelectedItem is CalendarEvent item && IsProviderEvent(item);
+            edit.Content = connected ? "_View event" : "_Edit event";
+            edit.IsEnabled = agenda.SelectedItem is CalendarEvent; delete.IsEnabled = agenda.SelectedItem is CalendarEvent && !connected;
+        };
         agenda.MouseDoubleClick += (_, _) => Edit();
         var template = new DataTemplate(typeof(CalendarEvent));
         var row = new FrameworkElementFactory(typeof(StackPanel));
