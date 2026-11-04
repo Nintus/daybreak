@@ -7,7 +7,7 @@ Windows 10/11 x64 only. This preview is unsigned.
 
 Your native calendar is stored separately from the web app:
 %LOCALAPPDATA%\DaymarkNative\calendar.json
-The previous save is calendar.json.bak. Use Save backup for a separate copy.
+The previous save is calendar.json.bak. Use File > Save backup for a separate copy.
 The first save after version-1 migration also preserves calendar.json.v1.bak.
 
 This preview supports timezone-aware non-recurring events, month/week/day
