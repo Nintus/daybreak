@@ -114,7 +114,8 @@ internal sealed class ImportDialog : Window
     private async Task Apply()
     {
         var selected = calendars.Values.Where(c => c.Check.IsChecked == true).Select(c => c.Import).ToList();
-        var drafts = choices.Where(c => c.Check.IsChecked == true && c.Check.IsEnabled).Select(c => c.Draft).ToList();
+        // IsEnabled inherits the busy panel state; it is not the selection state.
+        var drafts = choices.Where(c => c.Check.IsChecked == true).Select(c => c.Draft).ToList();
         var appearance = (theme.SelectedItem as ComboBoxItem)?.Tag as string;
         var minutes = (duration.SelectedItem as ComboBoxItem)?.Tag as int?;
         var snapshot = current();
