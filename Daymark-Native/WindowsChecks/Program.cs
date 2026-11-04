@@ -126,7 +126,7 @@ internal static class Program
                 Check(importSaves == 1 && importedDocument.Events.Count == 1, "repeating import does not duplicate events or re-save the calendar");
             }
             var migratedAccounts = new AccountsDialog(new AccountService(migrationFolder));
-            typeof(AccountsDialog).GetMethod("Render", flags)!.Invoke(migratedAccounts, [Array.Empty<(Daymark.Providers.ConnectedAccount, List<RemoteCalendar>)>()]);
+            typeof(AccountsDialog).GetMethod("Render", flags | BindingFlags.DeclaredOnly)!.Invoke(migratedAccounts, [Array.Empty<(Daymark.Providers.ConnectedAccount, List<RemoteCalendar>)>()]);
             var accountRows = (StackPanel)typeof(AccountsDialog).GetField("rows", flags)!.GetValue(migratedAccounts)!;
             Check(accountRows.Children.OfType<Border>().Count() == 1, "imported account appears in the account manager before sign-in"); migratedAccounts.Close();
             using (var editor = new WindowLifetime(new EventEditor(new(2026, 11, 4), null, new(9, 0), defaultDurationMinutes: new EventDefaults(migrationFolder).Minutes)))

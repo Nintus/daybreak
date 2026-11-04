@@ -88,7 +88,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 109 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The portable test suite has 140 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. Windows checks additionally exercise migration preview, selected imports/settings, repeat imports, account rows and the new-event duration. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 
