@@ -107,13 +107,13 @@ public sealed class CalendarReadClient(HttpClient http, Func<CancellationToken, 
             DateTime Instant(JsonElement point)
             {
                 var text = Required(point, "dateTime");
+                var hasOffset = System.Text.RegularExpressions.Regex.IsMatch(text, @"(Z|[+-]\d{2}:\d{2})$");
+                if (hasOffset) return DateTimeOffset.Parse(text, CultureInfo.InvariantCulture).UtcDateTime;
                 if (google)
                 {
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(text, @"(Z|[+-]\d{2}:\d{2})$"))
-                        throw new InvalidDataException("A Google event is missing its UTC offset.");
-                    return DateTimeOffset.Parse(text, CultureInfo.InvariantCulture).UtcDateTime;
+                    throw new InvalidDataException("A Google event is missing its UTC offset.");
                 }
-                var clock = DateTime.SpecifyKind(DateTime.Parse(text, CultureInfo.InvariantCulture), DateTimeKind.Unspecified);
+                var clock = DateTime.SpecifyKind(DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind), DateTimeKind.Unspecified);
                 var zone = CalendarTime.FindZone(Required(point, "timeZone"));
                 if (zone.IsInvalidTime(clock) || zone.IsAmbiguousTime(clock)) throw new InvalidDataException("A provider clock time has no unique UTC instant.");
                 return TimeZoneInfo.ConvertTimeToUtc(clock, zone);

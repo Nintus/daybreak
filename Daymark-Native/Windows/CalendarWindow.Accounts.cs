@@ -35,7 +35,9 @@ public sealed partial class CalendarWindow
                 return (Service: service, Calendars: service.Read());
             });
             if (!IsLoaded) return;
-            accountService = loaded.Service; providerCalendars = loaded.Calendars; combinedView = null; Refresh();
+            accountService = loaded.Service;
+            if (loaded.Calendars.Count == 0) return;
+            providerCalendars = loaded.Calendars; combinedView = null; Refresh();
         }
         catch (Exception error) { status.Text = "Local calendar available · " + AccountService.ErrorMessage(error); }
     }

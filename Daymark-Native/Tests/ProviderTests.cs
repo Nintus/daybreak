@@ -36,6 +36,11 @@ internal static class ProviderTests
             var item = Map("""{"id":"all","subject":"Holiday","isAllDay":true,"start":{"dateTime":"2026-11-03T06:00:00","timeZone":"UTC"},"end":{"dateTime":"2026-11-04T06:00:00","timeZone":"UTC"},"originalStartTimeZone":"Central Standard Time"}""", account with { Provider = CalendarProviderKind.Microsoft }).Event;
             check(item.AllDay && item.Start == new DateTime(2026, 11, 3) && item.End == new DateTime(2026, 11, 4));
         });
+        test("Graph explicit offsets do not depend on the PC timezone", () =>
+        {
+            var item = Map("""{"id":"offset","subject":"Meeting","start":{"dateTime":"2026-11-03T09:00:00-06:00","timeZone":"Central Standard Time"},"end":{"dateTime":"2026-11-03T10:00:00-06:00","timeZone":"Central Standard Time"}}""", account with { Provider = CalendarProviderKind.Microsoft }).Event;
+            check(item.StartUtc == new DateTime(2026, 11, 3, 15, 0, 0, DateTimeKind.Utc));
+        });
         test("opaque provider identity includes account and case-sensitive calendar/event IDs", () =>
         {
             check(mapped.Event.Id != Map(GoogleEvent, account with { Id = Guid.NewGuid() }).Event.Id);

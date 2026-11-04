@@ -38,12 +38,12 @@ jobs:
               Copy-Item $_.FullName (Join-Path $licenses "$package-$($_.Name)")
             }
           }
-      - name: Verify metadata, documentation and checksums
-        shell: pwsh
-        run: ./Daymark-Native/Build/Verify-Package.ps1 -PackagePath artifacts/windows -Commit '${{ github.sha }}' -RunId '${{ github.run_id }}'
       - name: Measure unattended test-calendar idle CPU
         shell: pwsh
         run: ./Daymark-Native/Build/Measure-Idle.ps1 -Executable artifacts/windows/Daymark.exe -OutputPath artifacts/idle-cpu.json
+      - name: Verify metadata, documentation and checksums
+        shell: pwsh
+        run: ./Daymark-Native/Build/Verify-Package.ps1 -PackagePath artifacts/windows -Commit '${{ github.sha }}' -RunId '${{ github.run_id }}'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Daymark-Windows-${{ github.sha }}

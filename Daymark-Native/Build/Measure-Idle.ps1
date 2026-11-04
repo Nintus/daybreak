@@ -7,8 +7,17 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($WarmupSeconds -lt 5 -or $SampleSeconds -lt 10) { throw 'Use at least 5 seconds warmup and 10 seconds sampling.' }
 $path = (Resolve-Path -LiteralPath $Executable).Path
-$process = Start-Process -FilePath $path -ArgumentList '--test-calendar' -PassThru -WindowStyle Normal
+$temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')
+$benchmarkRoot = [IO.Path]::Combine($temporaryRoot, 'daymark-idle-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $benchmarkRoot | Out-Null
+$process = $null
 try {
+    # Measure a fresh isolated copy; never add QA files to the distributable package.
+    Get-ChildItem -LiteralPath (Split-Path -Parent $path) -Force |
+        Where-Object { $_.Name -notin @('TestCalendar', 'credentials') -and $_.Name -notlike 'accounts.sqlite*' } |
+        Copy-Item -Destination $benchmarkRoot -Recurse
+    $benchmarkExecutable = Join-Path $benchmarkRoot ([IO.Path]::GetFileName($path))
+    $process = Start-Process -FilePath $benchmarkExecutable -ArgumentList '--test-calendar' -PassThru -WindowStyle Normal
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         Start-Sleep -Milliseconds 250
@@ -29,10 +38,13 @@ try {
             workingSetMiB = $process.WorkingSet64 / 1MB; privateBytesMiB = $process.PrivateMemorySize64 / 1MB }
     }
     @{ version = $process.MainModule.FileVersionInfo.ProductVersion; warmupSeconds = $WarmupSeconds; samples = $samples;
-        note = 'No UI automation. Empty isolated QA calendar unless test data already exists. CPU percentages refer to one core; not a battery benchmark.' } |
+        note = 'No UI automation. Fresh isolated copy with an empty QA calendar. CPU percentages refer to one core; not a battery benchmark.' } |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $OutputPath -Encoding utf8
     Get-Content -LiteralPath $OutputPath
 } finally {
     # Only the process this script created; never close a separately running personal calendar.
-    if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+    if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
+    $resolvedBenchmarkRoot = [IO.Path]::GetFullPath($benchmarkRoot)
+    if ([IO.Path]::GetDirectoryName($resolvedBenchmarkRoot) -ne $temporaryRoot -or [IO.Path]::GetFileName($resolvedBenchmarkRoot) -notmatch '^daymark-idle-[a-f0-9]{32}$') { throw 'Refusing to clean an unexpected benchmark directory.' }
+    Remove-Item -LiteralPath $resolvedBenchmarkRoot -Recurse -Force
 }
