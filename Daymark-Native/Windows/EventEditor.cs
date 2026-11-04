@@ -22,7 +22,7 @@ public sealed class EventEditor : Window
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBlock error = new() { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap };
 
-    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null)
+    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null, int defaultDurationMinutes = 60)
     {
         NativeTheme.Attach(this);
         Title = original is null ? "New event" : "Edit event";
@@ -89,7 +89,7 @@ public sealed class EventEditor : Window
         var sourceZone = original?.TimeZoneId is string id ? CalendarTime.FindZone(id) : defaultZone;
         var sourceEvent = original is null ? null : original.Recurrence is not null ? original : CalendarTime.InZone(original, sourceZone);
         var start = sourceEvent?.Start ?? selected.ToDateTime(initialTime ?? new TimeOnly(9, 0));
-        var end = sourceEvent?.End ?? start.AddHours(1);
+        var end = sourceEvent?.End ?? start.AddMinutes(defaultDurationMinutes is >= 1 and <= 1440 ? defaultDurationMinutes : 60);
         title.Text = original?.Title ?? ""; location.Text = original?.Location ?? ""; notes.Text = original?.Notes ?? "";
         startDate.SelectedDate = start.Date; endDate.SelectedDate = end.Date;
         startTime.Text = start.ToString("HH:mm"); endTime.Text = end.ToString("HH:mm"); allDay.IsChecked = original?.AllDay ?? false;

@@ -60,6 +60,12 @@ internal static class ProviderTests
             var snapshot = new CalendarReadClient(http, _ => Task.FromResult("fixture-token")).ReadAsync(account, calendar with { Id = "c/1" }, start, end, default).GetAwaiter().GetResult();
             check(calls == 2 && snapshot.Events.Count == 1);
         });
+        test("Google sign-in identity comes from the primary calendar flag, not a shared address", () =>
+        {
+            using var http = new HttpClient(new FixtureHandler(_ => Json("""{"items":[{"id":"shared@example.com","summary":"Shared"},{"id":"owner@example.com","summary":"Mine","primary":true}]}""")));
+            var client = new CalendarReadClient(http, _ => Task.FromResult("fixture-token")); client.ListAsync(account, default).GetAwaiter().GetResult();
+            check(client.PrimaryCalendarId == "owner@example.com");
+        });
         test("Graph continuation cannot send tokens to another host or calendar", () =>
         {
             foreach (var link in new[] { "https://evil.example/steal", "https://graph.microsoft.com/v1.0/me/messages" })

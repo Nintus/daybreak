@@ -16,6 +16,7 @@
     <None Update="Assets/Manrope-OFL.txt" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../Core/Daymark.Core.csproj" />
     <ProjectReference Include="../Providers/Daymark.Providers.csproj" />
+    <ProjectReference Include="../Migration/Daymark.Migration.csproj" />
     <PackageReference Include="Google.Apis.Auth" Version="1.78.0" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />
   </ItemGroup>

@@ -9,8 +9,10 @@ namespace Daymark.Providers;
 // instances remain read-only projections; they are never persisted as local series.
 public sealed class CalendarReadClient(HttpClient http, Func<CancellationToken, Task<string>> token)
 {
+    public string? PrimaryCalendarId { get; private set; }
     public async Task<IReadOnlyList<RemoteCalendar>> ListAsync(ConnectedAccount account, CancellationToken ct)
     {
+        PrimaryCalendarId = null;
         var google = account.Provider == CalendarProviderKind.Google;
         var first = google ? "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250"
             : "https://graph.microsoft.com/v1.0/me/calendars?$top=100";
@@ -21,6 +23,7 @@ public sealed class CalendarReadClient(HttpClient http, Func<CancellationToken, 
             {
                 if (Flag(item, "deleted") || Flag(item, "hidden")) continue;
                 var id = Required(item, "id");
+                if (google && Flag(item, "primary")) PrimaryCalendarId = id;
                 result.Add(new(id, Text(item, google ? "summaryOverride" : "name") ?? Text(item, "summary") ?? "Calendar",
                     google ? Text(item, "accessRole") is "owner" or "writer" : Flag(item, "canEdit"), Text(item, "backgroundColor")));
             }

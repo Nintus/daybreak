@@ -3,28 +3,33 @@ using System.Net;
 using System.Net.Http;
 using Daymark.Core;
 using Daymark.Providers;
+using Daymark.Migration;
 
 namespace Daymark.Windows;
 
 internal sealed class AccountService(string directory)
 {
     public AccountAuthorization Authorization { get; } = new(directory);
+    public AccountDraftStore ImportedAccounts { get; } = new(Path.Combine(directory, "imported-accounts.json"));
     private readonly ProviderCache cache = new(Path.Combine(directory, "accounts.sqlite"));
     private readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate }) { Timeout = TimeSpan.FromSeconds(60) };
     private readonly Dictionary<Guid, DateTime> cooldowns = [];
     public IReadOnlyList<(ConnectedAccount Account, List<RemoteCalendar> Calendars)> Accounts() => cache.Accounts();
     public IReadOnlyList<CachedCalendar> Read() => cache.Read();
     private CalendarReadClient Client(ConnectedAccount account) => new(http, ct => Authorization.TokenAsync(account, ct));
-    public async Task ConnectAsync(CalendarProviderKind provider, CancellationToken ct)
+    public async Task ConnectAsync(CalendarProviderKind provider, CancellationToken ct, AccountDraft? imported = null)
     {
-        var account = await Authorization.ConnectAsync(provider, ct);
+        var account = await Authorization.ConnectAsync(provider, ct, imported is not null && ImportIdentity.IsEmail(imported.Login) ? imported.Login : null);
         try
         {
-            var calendars = await Client(account).ListAsync(account, ct);
-            if (provider == CalendarProviderKind.Google) account = account with { Label = "Google · " + (Accounts().Count(a => a.Account.Provider == provider) + 1) };
+            var client = Client(account); var calendars = await client.ListAsync(account, ct);
+            if (provider == CalendarProviderKind.Google) account = account with { Label = ImportIdentity.IsEmail(client.PrimaryCalendarId ?? "") ? client.PrimaryCalendarId! : "Google · " + (Accounts().Count(a => a.Account.Provider == provider) + 1) };
             cache.SaveDiscovery(account, calendars);
         }
         catch { await Authorization.ForgetAsync(account); throw; }
+        // A login hint is only a suggestion to the provider. Remove the draft only
+        // when the signed-in identity matches, otherwise keep it for another attempt.
+        if (imported is not null && account.Label.Equals(imported.Login, StringComparison.OrdinalIgnoreCase)) ImportedAccounts.Remove(imported.Id);
     }
     public async Task RefreshAsync(ConnectedAccount account, string[] selected, CancellationToken ct)
     {

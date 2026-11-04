@@ -232,7 +232,8 @@ public sealed partial class CalendarWindow : Window
         var selectionBeforeEdit = selected;
         while (true)
         {
-            var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, document.CalendarList.FirstOrDefault(c => !hiddenCalendars.Contains(c.Id))?.Id) { Owner = this };
+            var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, document.CalendarList.FirstOrDefault(c => !hiddenCalendars.Contains(c.Id))?.Id,
+                new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
             var reset = original is not null && document.Events.Any(e => e.SeriesId == original.Id) && CalendarChanges.ScheduleChanged(original, draft);

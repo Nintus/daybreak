@@ -17,6 +17,13 @@ undo/redo, Horizon branding, Theme studio and backup/restore. Google/Microsoft
 manual read-only sync requires your OAuth setup (see docs/ACCOUNT_SETUP.md).
 Two-way editing, reminders and importing web calendar data are not implemented.
 
+Use File > Import from another app to scan Fantastical, classic Outlook and
+Thunderbird identities and local .ics files. Review items before importing.
+Compatible appearance and default event-duration settings are optional.
+Use File > Calendar accounts to sign back into imported Google/Microsoft
+profiles. iCloud/CalDAV profiles are saved pending support. See docs/IMPORT.md
+for export requirements, supported recurrence rules and migration limits.
+
 For isolated testing, use the Open Test Calendar shortcut when provided, or run:
 Daymark.exe --test-calendar
 This keeps test events/preferences separate from your personal calendar.

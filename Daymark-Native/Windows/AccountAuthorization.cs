@@ -45,14 +45,14 @@ internal sealed class AccountAuthorization(string directory)
             throw new InvalidDataException("Enter a Google desktop client ID and/or a Microsoft application (client) GUID.");
         protectedFiles.Write("applications", JsonSerializer.SerializeToUtf8Bytes(settings));
     }
-    private GoogleAuthorizationCodeFlow GoogleFlow(ConnectedAccount account)
+    private GoogleAuthorizationCodeFlow GoogleFlow(ConnectedAccount account, string? loginHint = null)
     {
         var apps = Applications;
         if (apps.GoogleClientId != account.ClientId) throw new InvalidDataException("Restore the Google client settings used by this connection, or disconnect and reconnect it.");
         return new PkceGoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
         {
             ClientSecrets = new ClientSecrets { ClientId = account.ClientId, ClientSecret = apps.GoogleClientSecret },
-            Scopes = GoogleScopes, DataStore = protectedFiles
+            Scopes = GoogleScopes, DataStore = protectedFiles, LoginHint = loginHint
         });
     }
     private IPublicClientApplication MicrosoftApp(ConnectedAccount account)
@@ -65,7 +65,7 @@ internal sealed class AccountAuthorization(string directory)
         app.UserTokenCache.SetAfterAccess(args => { if (args.HasStateChanged) protectedFiles.Write(key, args.TokenCache.SerializeMsalV3()); });
         microsoftApps[account.Id] = app; return app;
     }
-    public async Task<ConnectedAccount> ConnectAsync(CalendarProviderKind provider, CancellationToken ct)
+    public async Task<ConnectedAccount> ConnectAsync(CalendarProviderKind provider, CancellationToken ct, string? loginHint = null)
     {
         var apps = Applications;
         var id = provider == CalendarProviderKind.Google ? apps.GoogleClientId : apps.MicrosoftClientId;
@@ -75,13 +75,14 @@ internal sealed class AccountAuthorization(string directory)
         {
             if (provider == CalendarProviderKind.Google)
             {
-                using var flow = GoogleFlow(account);
+                using var flow = GoogleFlow(account, loginHint);
                 var credential = await new AuthorizationCodeInstalledApp(flow, new LocalServerCodeReceiver()).AuthorizeAsync(account.Id.ToString("N"), ct);
                 _ = await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
                 return account;
             }
-            var result = await MicrosoftApp(account).AcquireTokenInteractive(MicrosoftScopes).WithUseEmbeddedWebView(false)
-                .WithPrompt(Prompt.SelectAccount).ExecuteAsync(ct);
+            var request = MicrosoftApp(account).AcquireTokenInteractive(MicrosoftScopes).WithUseEmbeddedWebView(false).WithPrompt(Prompt.SelectAccount);
+            if (!string.IsNullOrEmpty(loginHint)) request = request.WithLoginHint(loginHint);
+            var result = await request.ExecuteAsync(ct);
             return account with { Subject = result.Account.HomeAccountId.Identifier, Label = string.IsNullOrWhiteSpace(result.Account.Username) ? "Microsoft" : result.Account.Username[..Math.Min(80, result.Account.Username.Length)] };
         }
         catch { await ForgetAsync(account); throw; }

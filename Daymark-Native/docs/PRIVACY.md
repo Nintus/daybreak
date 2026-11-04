@@ -1,6 +1,6 @@
 # Privacy policy — native Windows preview
 
-This policy describes `Daymark-Native` version 0.9, the C# / WPF client, including optional Google and Microsoft read-only connections. It does not describe the older web/Electron prototype.
+This policy describes `Daymark-Native` version 0.10, the C# / WPF client, including optional Google and Microsoft read-only connections and local app migration. It does not describe the older web/Electron prototype.
 
 ## Calendar data
 
@@ -17,6 +17,10 @@ OAuth application settings and token caches live in the `credentials` subfolder,
 Refresh is manual, covers a bounded date range and retains the previous cache on failure. There is no periodic polling or background service. Disconnect removes that connection's local cache and saved tokens; it does not remove server calendar events or revoke the provider's authorization grant. Authorization can be revoked through the provider's account controls. See [account setup and sync behavior](ACCOUNT_SETUP.md).
 
 ## Backups and sharing
+
+**Import from another app** reads selected calendar exports and scans known Fantastical/Thunderbird application folders and classic Outlook profile registry metadata. It discovers account names, usernames/email addresses, server origins and compatible preferences. It does not open password databases, read other apps' OAuth token/credential stores, start Outlook, fetch subscriptions, or send migration data over the network. Source apps and files are never modified. Private calendar databases (Fantastical, Thunderbird local.sqlite, Outlook PST/OST and new Outlook caches) are not converted.
+
+The preview stays in memory until Import selected. Selected identities are saved as plaintext `imported-accounts.json` beside the local calendar; it includes account name, login, provider, source app and server origin. Server paths, queries, fragments and embedded URL credentials are discarded. Profiles are separate from connected-account credentials and JSON calendar backups. Remove profile in Calendar accounts deletes that draft, without touching the source app or any connected account. Completing sign-in with a matching identity removes the draft; a different identity leaves it available for another attempt. Appearance and default event-duration preferences are stored separately; calendar Undo affects imported events only. See [import behavior](IMPORT.md).
 
 Save backup writes a complete JSON calendar to the location you choose. Restore reads a chosen file and asks before replacing current calendar data. A location inside a cloud-synced folder may be uploaded by that folder's service; Daymark does not control that service. Backup files contain event details, so review them before sharing.
 
