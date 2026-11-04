@@ -1,3 +1,5 @@
+> Active milestone: continue the native Windows app through [account-integration readiness](../../Daymark-Native/INTEGRATION-MILESTONE.md) without waiting for another "continue" prompt. The user will define the next milestone after the app is ready to begin Google and Microsoft integration. See the [provider plan](../../Daymark-Native/docs/PROVIDER_INTEGRATION.md). The web/Electron material below remains historical reference.
+
 # Active direction: native Windows first
 
 The current implementation plan is [Daymark-Native/ROADMAP.md](../../Daymark-Native/ROADMAP.md). Build and test `Daymark-Native/Windows`; the web/Electron source below is historical context and reference behavior. Windows uses C# / WPF with a portable C# calendar core. Future platforms may have their own native interfaces. Do not resume web-first development from the older notes below.

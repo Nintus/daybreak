@@ -16,7 +16,7 @@ try
     Test("save keeps previous-state backup", () => { store.Save(new(1, [changed])); Check(store.Load().Events.Single() == changed); Check(CalendarStore.Read(store.Path + ".bak").Events.Single() == item); });
     Test("invalid save leaves existing data intact", () => { Reject(() => store.Save(new(1, [changed with { End = changed.Start }]))); Check(store.Load().Events.Single() == changed); });
     Test("duplicate IDs are rejected", () => Reject(() => new CalendarDocument(1, [item, item]).Validate()));
-    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(3, [item]).Validate()));
+    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(4, [item]).Validate()));
     Test("midnight boundary excludes previous day's ending event", () => { var midnight = item with { End = new DateTime(2026, 10, 9) }; Check(new CalendarDocument(1, [midnight]).On(new DateOnly(2026, 10, 9)).Count() == 0); });
     Test("multi-day all-day event uses exclusive end", () => { var days = item with { Start = new DateTime(2026, 10, 8), End = new DateTime(2026, 10, 10), AllDay = true }; days.Validate(); var doc = new CalendarDocument(1, [days]); Check(doc.On(new(2026, 10, 8)).Count() == 1 && doc.On(new(2026, 10, 9)).Count() == 1 && doc.On(new(2026, 10, 10)).Count() == 0); });
     Test("all-day event rejects non-midnight times", () => Reject(() => (item with { AllDay = true }).Validate()));
@@ -258,9 +258,9 @@ try
             { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
         File.WriteAllText(store.Path, legacy);
         var loaded = store.Load();
-        Check(loaded.Version == 2 && loaded.Events.Single() == item && File.ReadAllText(store.Path) == legacy);
+        Check(loaded.Version == 3 && loaded.Events.Single() == item && File.ReadAllText(store.Path) == legacy);
         store.Save(loaded);
-        Check(File.ReadAllText(store.Path + ".bak") == legacy && store.Load().Version == 2);
+        Check(File.ReadAllText(store.Path + ".bak") == legacy && store.Load().Version == 3);
         Check(File.ReadAllText(store.Path + ".v1.bak") == legacy);
         store.Save(new(2, [changed])); Check(File.ReadAllText(store.Path + ".v1.bak") == legacy);
     });
@@ -301,6 +301,8 @@ try
         Check(store.Load().Events.Single() == item);
     });
     Test("corrupt file is not overwritten on load", () => { File.WriteAllText(store.Path, "bad json"); try { store.Load(); throw new Exception("Expected failure"); } catch (System.Text.Json.JsonException) { } Check(File.ReadAllText(store.Path) == "bad json"); });
+    RecurrenceTests.Run(Test, Check, Reject, folder);
+    SyncPlanningTests.Run(Test, Check, Reject);
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
     Console.WriteLine($"{count} tests passed");
 }

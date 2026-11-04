@@ -44,7 +44,7 @@ internal sealed class MonthDayButton : Button
             foreach (var item in events.Take(visible))
                 list.Children.Add(new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(4, 1, 4, 1), Margin = new Thickness(0, 3, 0, 0),
                     Background = item.AllDay ? NativeTheme.TealSoft : NativeTheme.Soft,
-                    Child = new TextBlock { Text = item.Title, FontSize = 11, Foreground = item.AllDay ? NativeTheme.Teal : NativeTheme.AccentInk,
+                    Child = new TextBlock { Text = item.Title, FontSize = 11, Foreground = CalendarPalette.Color(item.CalendarId),
                         TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = item.Title } });
         };
         Click += (_, _) => select();

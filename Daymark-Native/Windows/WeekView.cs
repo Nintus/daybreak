@@ -103,8 +103,8 @@ public sealed class WeekView : UserControl
         content.Children.Add(new TextBlock { Text = item.Title, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.SemiBold, FontSize = 12 });
         if (!item.AllDay) content.Children.Add(new TextBlock { Text = $"{item.Start:t} – {item.End:t}", FontSize = 10, Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         var button = new Button { Content = content, ToolTip = description, Style = NativeTheme.Style("CalendarEvent"), ClipToBounds = true,
-            Background = item.AllDay ? NativeTheme.TealSoft : NativeTheme.Soft, Foreground = item.AllDay ? NativeTheme.Teal : NativeTheme.AccentInk,
-            BorderBrush = item.AllDay ? NativeTheme.Teal : NativeTheme.Accent, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Background = item.AllDay ? NativeTheme.TealSoft : NativeTheme.Soft, Foreground = CalendarPalette.Color(item.CalendarId),
+            BorderBrush = CalendarPalette.Color(item.CalendarId), HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top };
         System.Windows.Automation.AutomationProperties.SetName(button, description);
         button.Click += (_, _) => edit(item);
