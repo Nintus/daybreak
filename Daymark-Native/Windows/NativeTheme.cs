@@ -281,6 +281,19 @@ internal static class NativeTheme
       <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/></Style>
       <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/></Style>
       <Style TargetType="ToolTip"><Setter Property="Background" Value="{DynamicResource ThemeSurface}"/><Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeLine}"/></Style>
+
+      <Style x:Key="ScrollPage" TargetType="RepeatButton"><Setter Property="Focusable" Value="False"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></Setter.Value></Setter></Style>
+      <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="{DynamicResource ThemeSubtle}"/><Setter Property="Width" Value="12"/><Setter Property="MinWidth" Value="0"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}">
+          <Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="{TemplateBinding Orientation}" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}" ViewportSize="{TemplateBinding ViewportSize}">
+            <Track.DecreaseRepeatButton><RepeatButton x:Name="Decrease" Command="ScrollBar.PageUpCommand" Style="{StaticResource ScrollPage}"/></Track.DecreaseRepeatButton>
+            <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border x:Name="Grip" CornerRadius="4" Margin="3" Background="{DynamicResource ThemeMuted}" Opacity="0.6"/><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Opacity" Value="1"/></Trigger><Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource ThemeAccent}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+            <Track.IncreaseRepeatButton><RepeatButton x:Name="Increase" Command="ScrollBar.PageDownCommand" Style="{StaticResource ScrollPage}"/></Track.IncreaseRepeatButton>
+          </Track>
+        </Grid><ControlTemplate.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/><Setter TargetName="Decrease" Property="Command" Value="ScrollBar.PageLeftCommand"/><Setter TargetName="Increase" Property="Command" Value="ScrollBar.PageRightCommand"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        <Style.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter Property="Width" Value="Auto"/><Setter Property="Height" Value="12"/></Trigger></Style.Triggers>
+      </Style>
     </ResourceDictionary>
     """;
 }

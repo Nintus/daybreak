@@ -41,3 +41,5 @@ Local verification:
 - Snapped the calendar to the left: the screenshot was 849 pixels wide (860 window width including frame). Toolbar, month navigation, month grid and schedule remained usable; schedule/search narrowed automatically.
 
 The template parts follow the [WPF Calendar documentation](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/calendar) and [DatePicker documentation](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/datepicker). OS theme changes while the app stays active, high contrast, alternate DPI and screen readers still need dedicated verification; no OS settings were changed in this session.
+
+Final template verification confirmed weekday headers, switching to year selection and back to the month grid. Scrollbars now follow the palette; the final week view was checked for appearance and scrolling.
