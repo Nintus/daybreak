@@ -18,10 +18,10 @@ public static class InstalledCalendarDiscovery
             { report.Notes.Add(source + ": metadata could not be read. Close the app and try again, or export calendars as .ics."); }
         }
         var fantastical = Path.Combine(roaming, "Fantastical");
-        if (Directory.Exists(fantastical)) Attempt("Fantastical", () =>
+        if (IsLocal(fantastical) && Directory.Exists(fantastical)) Attempt("Fantastical", () =>
         {
             var database = Path.Combine(fantastical, "Database");
-            if (Directory.Exists(database))
+            if (IsLocal(database) && Directory.Exists(database))
             {
                 var sources = Directory.EnumerateFiles(database, "Sources-*.plist").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
                 if (sources is not null) Attempt("Fantastical accounts", () => report.Accounts.AddRange(BinaryPlist.Accounts(Read(sources, 4_000_000), "Fantastical")));
@@ -32,7 +32,7 @@ public static class InstalledCalendarDiscovery
             report.Notes.Add("Fantastical: account metadata, local .ics files, default event duration and an explicit standard light/dark theme can be imported. Its private calendar database and custom themes are not converted. Sign back in to retrieve server calendars; export local calendars as .ics.");
         });
         var thunderbird = Path.Combine(roaming, "Thunderbird");
-        if (Directory.Exists(thunderbird)) Attempt("Thunderbird", () =>
+        if (IsLocal(thunderbird) && Directory.Exists(thunderbird)) Attempt("Thunderbird", () =>
         {
             var profiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var ini = Path.Combine(thunderbird, "profiles.ini");
@@ -50,7 +50,7 @@ public static class InstalledCalendarDiscovery
             }
             // Also handle ordinary profiles when profiles.ini is missing or stale.
             var defaults = Path.Combine(thunderbird, "Profiles");
-            if (Directory.Exists(defaults)) foreach (var path in Directory.EnumerateDirectories(defaults).Take(50)) if (IsLocal(path)) profiles.Add(path);
+            if (IsLocal(defaults) && Directory.Exists(defaults)) foreach (var path in Directory.EnumerateDirectories(defaults).Take(50)) if (IsLocal(path)) profiles.Add(path);
             foreach (var profile in profiles.Take(50)) Attempt("Thunderbird profile", () =>
             {
                 var prefs = Path.Combine(profile, "prefs.js");
@@ -60,8 +60,8 @@ public static class InstalledCalendarDiscovery
             report.Notes.Add("Thunderbird: calendar/mail identities, local .ics files, standard light/dark theme and default event duration are supported. Calendars in local.sqlite must be exported through Thunderbird (Events and Tasks → Export). Mail identities do not prove that a calendar exists on that account.");
         });
         if (includeOutlook && OperatingSystem.IsWindows()) Attempt("Outlook", () => ReadOutlook(report));
-        if (Directory.Exists(Path.Combine(local, "Microsoft", "Outlook")) ||
-            Directory.Exists(Path.Combine(local, "Packages")) && Directory.EnumerateDirectories(Path.Combine(local, "Packages"), "Microsoft.OutlookForWindows_*").Any())
+        if (IsLocal(Path.Combine(local, "Microsoft", "Outlook")) && Directory.Exists(Path.Combine(local, "Microsoft", "Outlook")) ||
+            IsLocal(Path.Combine(local, "Packages")) && Directory.Exists(Path.Combine(local, "Packages")) && Directory.EnumerateDirectories(Path.Combine(local, "Packages"), "Microsoft.OutlookForWindows_*").Any())
             report.Notes.Add("Outlook: classic profile identities are supported when available. New Outlook's private account cache and PST/OST files are not read. Export a calendar as .ics or add its account to Daymark.");
         if (directoriesVisited >= 1000 || report.CalendarFiles.Count >= 100) report.Notes.Add("Automatic file discovery reached its limit (1,000 app folders / 100 files / 3 levels). Add other .ics exports with Add .ics files.");
         if (report.Accounts.Count > 1000) report.Notes.Add("Account discovery reached its 1,000-identity limit. Import profiles in smaller batches.");
@@ -69,10 +69,29 @@ public static class InstalledCalendarDiscovery
         if (accounts.Count > 200) report.Notes.Add("Only the first 200 account profiles are shown. Daymark stores at most 200 imported profiles.");
         return report with { Accounts = accounts.Take(200).ToList(), CalendarFiles = report.CalendarFiles.Where(IsLocal).Distinct(StringComparer.OrdinalIgnoreCase).Take(100).ToList() };
     }
-    internal static bool IsLocal(string path) => Path.IsPathFullyQualified(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) && !path.StartsWith("//", StringComparison.Ordinal) &&
-        (!File.Exists(path) && !Directory.Exists(path) || (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0);
+    internal static bool IsLocal(string path)
+    {
+        if (!Path.IsPathFullyQualified(path) || path.StartsWith("\\\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal)) return false;
+        try
+        {
+            var full = Path.GetFullPath(path); var root = Path.GetPathRoot(full)!;
+            if (OperatingSystem.IsWindows() && new DriveInfo(root).DriveType == DriveType.Network) return false;
+            // Check parents before descendants: a local-looking path can enter a
+            // junction to a remote share, even when the final file is not a link.
+            var current = root;
+            foreach (var part in full[root.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, part);
+                try { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return false; }
+                catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return true; }
+            }
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
+    }
     private static byte[] Read(string path, int maximum)
     {
+        if (!IsLocal(path)) throw new IOException("Automatic discovery skips linked and network locations.");
         using var stream = File.OpenRead(path);
         if (stream.Length > maximum) throw new InvalidDataException("Metadata exceeds its size limit.");
         var bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes); return bytes;
