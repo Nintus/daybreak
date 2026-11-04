@@ -25,7 +25,7 @@ internal sealed class MonthDayButton : Button
         heading.Children.Add(new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), HorizontalAlignment = HorizontalAlignment.Left,
             Background = today ? NativeTheme.Accent : Brushes.Transparent,
             Child = new TextBlock { Text = date.Day.ToString(), FontSize = 13, FontWeight = today || selected ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = today ? SystemColors.HighlightTextBrush : inMonth ? NativeTheme.Ink : NativeTheme.Muted,
+                Foreground = today ? NativeTheme.OnAccent : inMonth ? NativeTheme.Ink : NativeTheme.Muted,
                 VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } });
         content.Children.Add(heading);
         var list = new StackPanel { ClipToBounds = true }; Grid.SetRow(list, 1); content.Children.Add(list);

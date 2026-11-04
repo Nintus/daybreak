@@ -29,7 +29,7 @@ public static class Program
         var dataDirectory = testCalendar ? Path.Combine(AppContext.BaseDirectory, "TestCalendar")
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DaymarkNative");
         var store = new CalendarStore(Path.Combine(dataDirectory, "calendar.json"));
-        try { NativeTheme.Apply(app); app.Run(new CalendarWindow(store, store.Load(), testCalendar)); }
+        try { NativeTheme.Apply(app, Path.Combine(dataDirectory, "appearance.txt")); app.Run(new CalendarWindow(store, store.Load(), testCalendar)); }
         catch (Exception error)
         {
             MessageBox.Show($"Daymark could not start. Your calendar has not been replaced.\n\n{error.Message}\n\nData: {store.Path}\nPrevious save: {store.Path}.bak",
@@ -73,17 +73,17 @@ public sealed partial class CalendarWindow : Window
         displayed = this.document.InZone(displayZone);
         month = new DateOnly(selected.Year, selected.Month, 1);
         Title = "Daymark" + (testCalendar ? " — Test calendar" : "");
-        Width = 1240; Height = 820; MinWidth = 960; MinHeight = 640;
+        Width = 1240; Height = 820; MinWidth = 860; MinHeight = 620;
         Background = NativeTheme.Background; Foreground = NativeTheme.Ink;
         FontFamily = new FontFamily("Segoe UI"); FontSize = 13;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         edit = Button("_Edit event", (_, _) => Edit());
         delete = Button("_Delete", (_, _) => Delete());
-        BuildLayout(testCalendar);
+        BuildLayout(testCalendar); NativeTheme.Attach(this);
         InputBindings.Add(new KeyBinding(new ActionCommand(NewEvent), Key.N, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(Export), Key.B, ModifierKeys.Control));
-        Activated += (_, _) => { if (followDeviceZone) { TimeZoneInfo.ClearCachedData(); displayZone = TimeZoneInfo.Local; } Refresh(); };
+        Activated += (_, _) => { NativeTheme.Refresh(); if (followDeviceZone) { TimeZoneInfo.ClearCachedData(); displayZone = TimeZoneInfo.Local; } Refresh(); };
         Refresh();
     }
     private static Button Button(string label, RoutedEventHandler action)

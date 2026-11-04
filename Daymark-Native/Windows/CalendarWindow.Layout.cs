@@ -40,6 +40,19 @@ public sealed partial class CalendarWindow
         file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", Close)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
         editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem); menu.Items.Add(editMenu);
+        var appearance = new MenuItem { Header = "_Appearance" };
+        foreach (var mode in Enum.GetValues<AppThemeMode>())
+        {
+            var option = new MenuItem { Header = mode == AppThemeMode.System ? "_System setting" : "_" + mode, IsCheckable = true, IsChecked = NativeTheme.Mode == mode };
+            option.Click += (_, _) =>
+            {
+                try { NativeTheme.Select(mode); }
+                catch (Exception error) { MessageBox.Show(this, $"Your appearance preference could not be saved.\n\n{error.Message}", "Appearance", MessageBoxButton.OK, MessageBoxImage.Error); }
+                foreach (MenuItem sibling in appearance.Items) sibling.IsChecked = (AppThemeMode)sibling.Tag == NativeTheme.Mode;
+            };
+            option.Tag = mode; appearance.Items.Add(option);
+        }
+        menu.Items.Add(appearance);
         var help = new MenuItem { Header = "_Help" };
         help.Items.Add(MenuAction("Time _zones", () => MessageBox.Show(this,
             "The display time zone changes how timed events appear. Each anchored event keeps its own source zone and UTC instants.\n\nFloating events keep their clock times in every zone. Choose a time zone in an event to anchor it. All-day events keep their dates.", "Time zones", MessageBoxButton.OK, MessageBoxImage.Information)));
@@ -72,7 +85,7 @@ public sealed partial class CalendarWindow
         var create = Button("＋ _New event", (_, _) => NewEvent()); create.Style = NativeTheme.Style("PrimaryButton"); create.Padding = new Thickness(15, 9, 15, 9); actions.Children.Add(create);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         brand.Children.Add(new Border { Background = NativeTheme.Accent, Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 11, 0),
-            Child = new TextBlock { Text = "\uE787", FontFamily = new FontFamily("Segoe MDL2 Assets"), Foreground = SystemColors.HighlightTextBrush, FontSize = 20,
+            Child = new TextBlock { Text = "\uE787", FontFamily = new FontFamily("Segoe MDL2 Assets"), Foreground = NativeTheme.OnAccent, FontSize = 20,
                 VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } });
         brand.Children.Add(new TextBlock { Text = "Daymark", FontSize = 25, Foreground = NativeTheme.Ink, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         if (testCalendar) brand.Children.Add(new TextBlock { Text = "TEST", Foreground = NativeTheme.Muted, FontSize = 10, FontWeight = FontWeights.SemiBold,
@@ -81,6 +94,11 @@ public sealed partial class CalendarWindow
         var footer = new DockPanel { Margin = new Thickness(2, 12, 2, 0) }; DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
         footer.Children.Add(status);
         var body = new Grid(); body.ColumnDefinitions.Add(new ColumnDefinition()); body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) }); root.Children.Add(body);
+        body.SizeChanged += (_, e) =>
+        {
+            body.ColumnDefinitions[1].Width = new GridLength(e.NewSize.Width < 1000 ? 260 : 300);
+            search.Width = e.NewSize.Width < 1000 ? 150 : 195;
+        };
         var calendar = new DockPanel();
         body.Children.Add(new Border { Background = NativeTheme.Surface, BorderBrush = NativeTheme.Line, BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14), Padding = new Thickness(20), Margin = new Thickness(0, 0, 18, 0), Child = calendar });

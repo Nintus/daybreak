@@ -12,7 +12,9 @@ The **Edit** menu offers calendar **Undo** and **Redo** for event creation, edit
 
 ## Interface
 
-The native interface uses a compact Month/Week/Day switcher, event previews in the month grid, and a selected-day schedule with readable time and zone summaries. Use **File** for backup/restore and **Help** for About and time-zone guidance. Search filters the schedule across the calendar. The editor groups start and end date/time fields; all-day dates retain their exclusive-end meaning. Keyboard focus is visible. High contrast uses system control templates and colors; switching contrast while the app is open requires restarting it.
+The native interface uses a compact Month/Week/Day switcher, event previews in the month grid, and a selected-day schedule with readable time and zone summaries. Use **File** for backup/restore and **Help** for About and time-zone guidance. Search filters the schedule across the calendar. The editor groups start and end date/time fields; all-day dates retain their exclusive-end meaning. Keyboard focus is visible. The schedule and search controls adapt to compact windows (minimum width 860).
+
+Choose **Appearance → System setting**, **Light**, or **Dark**. Changes apply immediately, including menus, dropdowns, date popups and title bars. System mode follows the Windows app-color preference and refreshes on Windows preference notifications or app activation. Your choice is saved in `appearance.txt` beside the native calendar data; the test calendar has its own preference. Missing, invalid or unreadable preferences fall back to System without blocking calendar access. Calendar backups contain events, not appearance preferences. High contrast takes precedence and uses system control templates and colors; switching contrast while the app is open requires restarting it.
 
 ## Time zones and daylight saving
 

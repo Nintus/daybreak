@@ -25,3 +25,19 @@ Client: C# / WPF, version 0.6.0, isolated `--test-calendar` profile. This refres
 ## Remaining checks
 
 High-contrast mode, alternate DPI/scaling, screen-reader behavior and minimum-size layout need dedicated Windows QA. A border-drag attempt did not establish a smaller window size. No security or Windows accessibility settings were changed. No performance/battery benchmark was performed. Provider sync, recurrence, reminders and signed distribution remain separate work.
+
+
+## Theme and compact-layout follow-up — version 0.7.0
+
+Added Appearance > System setting / Light / Dark. Palette brushes update in place to preserve view state and calendar history. The preference is saved separately from events, atomically replaced, and isolated in the test profile. High contrast overrides the selected palette. System preference notifications and app activation refresh System mode. Window and editor title bars use the Windows dark-titlebar attribute where supported.
+
+Local verification:
+
+- Release build succeeds with zero warnings/errors; all 47 core checks pass.
+- System mode resolved to the machine's current dark app preference without changing Windows settings.
+- Switched to Light live and restarted: Light persisted. Switched to Dark and restarted: Dark persisted.
+- Dark palette was inspected in the month grid, schedule cards, menu, dropdown and event editor. Time-zone selection labels render as labels rather than object representations.
+- The date editor uses themed native DatePicker parts and calendar day/month buttons. Date selection changed the date field correctly and closed the popup. Draft was cancelled without saving an event.
+- Snapped the calendar to the left: the screenshot was 849 pixels wide (860 window width including frame). Toolbar, month navigation, month grid and schedule remained usable; schedule/search narrowed automatically.
+
+The template parts follow the [WPF Calendar documentation](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/calendar) and [DatePicker documentation](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/datepicker). OS theme changes while the app stays active, high contrast, alternate DPI and screen readers still need dedicated verification; no OS settings were changed in this session.

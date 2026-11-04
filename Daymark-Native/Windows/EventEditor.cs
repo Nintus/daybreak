@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Daymark.Core;
 
 namespace Daymark.Windows;
@@ -18,10 +19,11 @@ public sealed class EventEditor : Window
     private readonly ComboBox endOccurrence = OccurrencePicker();
     private readonly TextBox location = new() { MaxLength = 1000 };
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-    private readonly TextBlock error = new() { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock error = new() { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap };
 
     public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null)
     {
+        NativeTheme.Attach(this);
         Title = original is null ? "New event" : "Edit event";
         Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
         ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -45,6 +47,10 @@ public sealed class EventEditor : Window
             Field(dateLabel, date, left); Field(timeLabel, time, right);
             time.ToolTip = "24-hour time, for example 09:00 or 14:30";
         }
+        foreach (var date in new[] { startDate, endDate }) date.Loaded += (_, _) =>
+        {
+            if (date.Template.FindName("PART_TextBox", date) is DatePickerTextBox text) text.Style = NativeTheme.Style("DateField");
+        };
         Field("_Title", title);
         DateAndTime("Start _date", startDate, "Start ti_me · 24-hour", startTime);
         DateAndTime("End da_te", endDate, "End tim_e · 24-hour", endTime);
