@@ -7,9 +7,20 @@ namespace Daymark.Windows;
 
 internal sealed class MonthDayButton : Button
 {
+    public DateOnly Date { get; }
+    private readonly bool inMonth, today;
+    private readonly TextBlock dateLabel;
+    public void SelectDay(bool selected)
+    {
+        Background = selected ? NativeTheme.Soft : inMonth ? NativeTheme.Surface : NativeTheme.Subtle;
+        BorderBrush = selected && SystemParameters.HighContrast ? NativeTheme.Accent : NativeTheme.Line;
+        BorderThickness = selected && SystemParameters.HighContrast ? new Thickness(2) : new Thickness(0, 0, 1, 1);
+        dateLabel.FontWeight = today || selected ? FontWeights.SemiBold : FontWeights.Normal;
+    }
     public MonthDayButton(DateOnly date, bool inMonth, bool selected, bool today,
         IReadOnlyList<CalendarEvent> events, Action select)
     {
+        Date = date; this.inMonth = inMonth; this.today = today;
         Style = NativeTheme.Style("CalendarDay");
         Padding = new Thickness(8); Margin = new Thickness(0); ClipToBounds = true;
         HorizontalContentAlignment = HorizontalAlignment.Stretch; VerticalContentAlignment = VerticalAlignment.Stretch;
@@ -22,11 +33,12 @@ internal sealed class MonthDayButton : Button
         var count = new TextBlock { Text = events.Count.ToString(), FontSize = 10, Foreground = NativeTheme.Muted,
             VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Visibility = Visibility.Collapsed };
         DockPanel.SetDock(count, Dock.Right); heading.Children.Add(count);
+        dateLabel = new TextBlock { Text = date.Day.ToString(), FontSize = 13, FontWeight = today || selected ? FontWeights.SemiBold : FontWeights.Normal,
+            Foreground = today ? NativeTheme.OnAccent : inMonth ? NativeTheme.Ink : NativeTheme.Muted,
+            VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         heading.Children.Add(new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), HorizontalAlignment = HorizontalAlignment.Left,
             Background = today ? NativeTheme.Accent : Brushes.Transparent,
-            Child = new TextBlock { Text = date.Day.ToString(), FontSize = 13, FontWeight = today || selected ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = today ? NativeTheme.OnAccent : inMonth ? NativeTheme.Ink : NativeTheme.Muted,
-                VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } });
+            Child = dateLabel });
         content.Children.Add(heading);
         var list = new StackPanel { ClipToBounds = true }; Grid.SetRow(list, 1); content.Children.Add(list);
         Content = content;

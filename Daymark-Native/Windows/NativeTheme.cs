@@ -51,6 +51,7 @@ internal static class NativeTheme
     public static void Apply(Application app, string path)
     {
         settingsPath = path;
+        NativeMotion.Initialize(app, System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, "motion.txt"));
         try
         {
             if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length <= 4096)
@@ -125,6 +126,7 @@ internal static class NativeTheme
             _ = DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int));
         }
         window.SourceInitialized += (_, _) => UpdateTitleBar();
+        window.Loaded += (_, _) => { if (window.Content is FrameworkElement content) NativeMotion.Reveal(content); };
         Changed += UpdateTitleBar;
         window.Closed += (_, _) => Changed -= UpdateTitleBar;
     }

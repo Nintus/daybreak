@@ -55,6 +55,14 @@ public sealed partial class CalendarWindow
         }
         appearance.Items.Add(new Separator());
         appearance.Items.Add(MenuAction("_Theme studio…", () => new ThemeDialog { Owner = this }.ShowDialog()));
+        var reducedMotion = new MenuItem { Header = "_Reduce motion", IsCheckable = true, IsChecked = NativeMotion.Reduced,
+            ToolTip = "Disable Daymark transitions. Windows animation and high-contrast preferences always take priority." };
+        reducedMotion.Click += (_, _) =>
+        {
+            try { NativeMotion.SetReduced(reducedMotion.IsChecked); }
+            catch (Exception) { reducedMotion.IsChecked = NativeMotion.Reduced; MessageBox.Show(this, "The motion preference could not be saved. Check access to the app data folder.", "Appearance"); }
+        };
+        appearance.Items.Add(reducedMotion);
         appearance.SubmenuOpened += (_, _) => { foreach (var entry in appearance.Items.OfType<MenuItem>().Where(i => i.Tag is AppThemeMode)) entry.IsChecked = (AppThemeMode)entry.Tag == NativeTheme.Mode; };
         menu.Items.Add(appearance);
         var help = new MenuItem { Header = "_Help" };

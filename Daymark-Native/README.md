@@ -113,3 +113,11 @@ Unchanged window activations now retain the month visual tree; theme refreshes s
 Use **Appearance → Theme studio** for System, Light, Dark, OLED black, Ocean, Forest, Rose dusk or Custom. Custom accepts a native Windows color picker, quick swatches or a #RRGGBB value and generates matching surfaces, selection colors, borders and readable accent text. Choose a Light, Dark or OLED base. Changes preview immediately across the app; Save theme persists them, while Cancel or closing restores the previous theme. Invalid color text cannot be saved.
 
 OLED black uses pure #000000 canvas and calendar surfaces, with outlines and colored selection/event fills for legibility. Calendar colors retain their own identities. Windows high contrast takes priority. Existing appearance.txt choices migrate when saved; preferences remain separate from calendar backups. No battery-savings claim is made.
+
+## Motion and navigation
+
+Navigation, settled search results and newly opened windows use a subtle 120 ms opacity transition at up to 30 frames per second. Input and data updates remain immediate; no animation delays saving or opening an event. Rapid navigation replaces the previous transition, and completed/unloaded animations release their clocks. There are no perpetual animation loops or background motion timers.
+
+Windows client-area animation and high-contrast preferences take priority. **Appearance → Reduce motion** also disables transitions and stops active ones immediately; this preference is saved separately in motion.txt. Theme-color previews remain immediate. Selecting another day inside the current month updates the existing grid and agenda, preserving focus rather than rebuilding all 42 day buttons.
+
+Windows CI tests motion policy, replacement/cleanup and selection reuse. Actual motion feel on the target PC still needs a signed build and visual verification; the existing Smart App Control blocker remains.

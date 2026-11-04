@@ -65,6 +65,7 @@ public sealed partial class CalendarWindow : Window
     private readonly Button delete;
     private bool refreshing;
     private DateOnly? renderedToday;
+    private (DateOnly First, CalendarViewMode Mode)? renderedRange;
     private readonly System.Windows.Threading.DispatcherTimer searchDelay = new() { Interval = TimeSpan.FromMilliseconds(180) };
     private readonly HashSet<string> hiddenCalendars = new(StringComparer.Ordinal);
     private readonly System.Windows.Controls.WrapPanel calendarFilters = new();
@@ -100,7 +101,7 @@ public sealed partial class CalendarWindow : Window
             }
             if (zoneChanged || renderedToday != CalendarTime.Today(displayZone)) Refresh();
         };
-        searchDelay.Tick += (_, _) => { searchDelay.Stop(); RefreshAgenda(); };
+        searchDelay.Tick += (_, _) => { searchDelay.Stop(); RefreshAgenda(); NativeMotion.Reveal(agenda); };
         Closed += (_, _) => searchDelay.Stop();
         Loaded += async (_, _) => await LoadAccountsAsync();
         InputBindings.Add(new KeyBinding(new ActionCommand(() => { search.Focus(); search.SelectAll(); }), Key.F, ModifierKeys.Control));
@@ -119,6 +120,7 @@ public sealed partial class CalendarWindow : Window
     }
     private void Refresh()
     {
+        searchDelay.Stop();
         try { RefreshView(); }
         catch (Exception error) when (error is InvalidDataException or ArgumentOutOfRangeException)
         {
@@ -133,6 +135,8 @@ public sealed partial class CalendarWindow : Window
         renderedToday = CalendarTime.Today(displayZone);
         var visibleFirst = viewMode == CalendarViewMode.Month ? month.AddDays(-(((int)month.DayOfWeek + 6) % 7))
             : viewMode == CalendarViewMode.Day ? selected : WeekLayout.StartOfWeek(selected);
+        var nextRange = (visibleFirst, viewMode);
+        var transition = renderedRange is not null && renderedRange != nextRange;
         displayed = Recurrence.InRange(ViewDocument, visibleFirst, viewMode == CalendarViewMode.Month ? 42 : viewMode == CalendarViewMode.Day ? 1 : 7, displayZone, hiddenCalendars);
         CalendarPalette.Set(ViewDocument.CalendarList); RefreshCalendarFilters();
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
@@ -158,6 +162,19 @@ public sealed partial class CalendarWindow : Window
         undoItem.Header = history.CanUndo ? $"_Undo {history.UndoDescription}" : "_Undo";
         redoItem.Header = history.CanRedo ? $"_Redo {history.RedoDescription}" : "_Redo";
         CommandManager.InvalidateRequerySuggested();
+        renderedRange = nextRange;
+        if (transition) NativeMotion.Reveal(calendarContent);
+    }
+    private void SelectDay(DateOnly date)
+    {
+        if (selected == date && search.Text.Length == 0) return;
+        selected = date; search.Clear(); searchDelay.Stop();
+        if (viewMode == CalendarViewMode.Month && date.Year == month.Year && date.Month == month.Month)
+        {
+            foreach (var cell in days.Children.OfType<MonthDayButton>()) cell.SelectDay(cell.Date == date);
+            RefreshAgenda(); NativeMotion.Reveal(agenda);
+        }
+        else { month = new(date.Year, date.Month, 1); Refresh(); }
     }
     private void RefreshMonth()
     {
@@ -171,7 +188,7 @@ public sealed partial class CalendarWindow : Window
             var date = start.AddDays(i);
             var items = visibleDays[i];
             var button = new MonthDayButton(date, date.Month == month.Month, date == selected, date == renderedToday, items,
-                () => { selected = date; search.Clear(); Refresh(); });
+                () => SelectDay(date));
             Grid.SetRow(button, i / 7 + 1); Grid.SetColumn(button, i % 7); days.Children.Add(button);
         }
     }

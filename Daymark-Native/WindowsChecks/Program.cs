@@ -52,6 +52,37 @@ internal static class Program
             typeof(CalendarWindow).GetField("renderedToday", flags)!.SetValue(window, new DateOnly(2000, 1, 1));
             activate.Invoke(window, [EventArgs.Empty]);
             Check(!ReferenceEquals(cell, grid.Children[7]), "activation still refreshes after the calendar day changes");
+            var selection = typeof(CalendarWindow).GetMethod("SelectDay", flags)!;
+            var currentMonth = (DateOnly)typeof(CalendarWindow).GetField("month", flags)!.GetValue(window)!;
+            var stableCell = grid.Children[7];
+            var nextDay = grid.Children.OfType<MonthDayButton>().First(c => c.Date.Month == currentMonth.Month && c.Date.Day == 15).Date;
+            selection.Invoke(window, [nextDay]);
+            Check(ReferenceEquals(stableCell, grid.Children[7]) && (DateOnly)typeof(CalendarWindow).GetField("selected", flags)!.GetValue(window)! == nextDay,
+                "selecting a day within the month reuses the existing visual tree");
+            selection.Invoke(window, [currentMonth.AddMonths(1)]);
+            Check(!ReferenceEquals(stableCell, grid.Children[7]), "selecting a date in another month rebuilds the visible range");
+            foreach (var animations in new[] { false, true }) foreach (var highContrast in new[] { false, true }) foreach (var reduced in new[] { false, true })
+                if (NativeMotion.Allowed(animations, highContrast, reduced) != (animations && !highContrast && !reduced)) throw new Exception("Motion policy failed");
+            Check(true, "Windows animation, high contrast and app reduced-motion preferences gate transitions");
+            var motionSurface = new Border { Opacity = .75 };
+            var motionWindow = new Window { Content = motionSurface, Width = 160, Height = 120, ShowInTaskbar = false };
+            motionWindow.Show(); NativeMotion.SetReduced(false);
+            var enabled = NativeMotion.Enabled; NativeMotion.Reveal(motionSurface); NativeMotion.Reveal(motionSurface);
+            Check(NativeMotion.ActiveCount == (enabled ? 1 : 0), "rapid transitions replace the previous animation without accumulating clocks");
+            NativeMotion.SetReduced(true);
+            Check(NativeMotion.ActiveCount == 0 && !motionSurface.HasAnimatedProperties && motionSurface.Opacity == .75 && File.ReadAllText(Path.Combine(folder, "motion.txt")) == "reduced",
+                "reducing motion immediately removes clocks, preserves opacity and persists the preference");
+            NativeMotion.Reveal(motionSurface);
+            Check(NativeMotion.ActiveCount == 0 && !motionSurface.HasAnimatedProperties, "reduced motion does not schedule an animation");
+            NativeMotion.SetReduced(false); NativeMotion.Reveal(motionSurface);
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            var deadline = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            deadline.Tick += (_, _) => { deadline.Stop(); frame.Continue = false; }; deadline.Start();
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+            Check(NativeMotion.ActiveCount == 0 && !motionSurface.HasAnimatedProperties && motionSurface.Opacity == .75,
+                "completed transitions release clocks and return to the element's base opacity");
+            NativeMotion.Reveal(motionSurface); motionWindow.Close();
+            Check(NativeMotion.ActiveCount == 0, "closing an animating surface releases its motion state");
             var auth = new AccountAuthorization(folder);
             auth.Configure(new("fixture.apps.googleusercontent.com", "synthetic-secret", "11111111-1111-1111-1111-111111111111"));
             Check(new AccountAuthorization(folder).Applications.GoogleClientSecret == "synthetic-secret", "OAuth setup survives a protected-cache round trip");
@@ -65,7 +96,7 @@ internal static class Program
             using var dialog = new WindowLifetime(new AccountsDialog(new AccountService(folder)));
             Check(dialog.Window.Content is DockPanel, "native account manager constructs with an isolated cache");
             window.Close(); app.Shutdown();
-            Console.WriteLine("12 Windows checks passed");
+            Console.WriteLine("20 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
