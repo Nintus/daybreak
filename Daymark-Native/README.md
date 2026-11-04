@@ -34,7 +34,7 @@ The editor rejects a clock time skipped during a spring-forward transition. For 
 
 All-day events remain date ranges in every zone. **Floating** timed events keep their clock values everywhere. Existing version-1 events migrate as floating events because their original timezone was never recorded. Set a zone explicitly in the editor to anchor one. Migration does not rewrite a file merely by loading it. The first successful save writes version 3 and preserves the original version-1 or version-2 file in `calendar.json.v1.bak` or `calendar.json.v2.bak`; this migration backup is not rotated. The ordinary previous-save `.bak` continues separately. Export a backup before returning to an older native preview: older previews reject version-3 calendars. Version 3 adds calendars, repeat rules and exception identities; do not downgrade your writable data file.
 
-The 24-hour timeline uses clock-time rows; repeated-hour occurrences share that part of the grid and are distinguished by offsets in descriptions. It is not a 25-row elapsed-hours view. UTC instants are authoritative for anchored non-recurring events; stored clock fields are snapshots. OS timezone data supplies conversion rules. Recurring series use their source wall-clock schedule and the seed event's elapsed duration; provider sync is not implemented.
+The 24-hour timeline uses clock-time rows; repeated-hour occurrences share that part of the grid and are distinguished by offsets in descriptions. It is not a 25-row elapsed-hours view. UTC instants are authoritative for anchored non-recurring events; stored clock fields are snapshots. OS timezone data supplies conversion rules. Recurring series use their source wall-clock schedule and the seed event's elapsed duration; connected provider instances are read-only projections from bounded snapshots.
 
 ## Run the prepared Windows build
 
@@ -57,7 +57,7 @@ Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous succes
 
 Closing the window exits the app. It does not install a startup service, remain in the tray, poll providers, or run reminder timers. A single-instance guard prevents ordinary duplicate launches in the same Windows session.
 
-Reminders, tasks, ICS import/export, provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Reminders, tasks, ICS import/export, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
 
 All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, `Ctrl+F` for search, `Ctrl+G` for Go to Date, and Escape to cancel the editor are available.
 
@@ -86,7 +86,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The shared core has 93 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The shared core has 108 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 
@@ -101,3 +101,9 @@ Before relying on the app, check these on Windows with disposable events using t
 ## Efficiency goals
 
 The design avoids a browser runtime and has no idle polling or background network activity. Calendar rendering happens on navigation or changes; event saves happen on explicit edits. These choices provide a useful foundation, but resource use and battery life have not yet been measured. Apple Calendar-level efficiency is a goal, not a result claimed by this preview.
+
+## Connected accounts in 0.9
+
+Use **File → Calendar accounts** for Google/Microsoft setup, browser sign-in, calendar selection and manual read-only refresh. See [ACCOUNT_SETUP.md](docs/ACCOUNT_SETUP.md). Provider-expanded events remain separate from local editing/backup/history. The downloaded range is three months back and fifteen months forward at refresh time; cache coverage and oldest refresh appear in the status bar. No background polling is installed. Real sign-in still requires OAuth registrations and end-to-end validation. Two-way editing is not enabled.
+
+Unchanged window activations now retain the month visual tree; theme refreshes skip unchanged palette resources. Windows CI checks both behaviors and measures unattended idle CPU, rejecting failed launches. See [CPU and sync QA](QA-CPU-AND-SYNC.md) for evidence and limitations.

@@ -9,7 +9,12 @@
     <AssemblyName>Daymark</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../Core/Daymark.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/Daymark.Core.csproj" />
+    <ProjectReference Include="../Providers/Daymark.Providers.csproj" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.78.0" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />
+  </ItemGroup>
   <ItemGroup>
     <None Update="START-HERE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="../README.md" Link="README.md" CopyToPublishDirectory="PreserveNewest" />

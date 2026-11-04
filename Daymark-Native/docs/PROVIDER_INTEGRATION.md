@@ -1,6 +1,6 @@
 # Google and Microsoft integration boundary
 
-This is the implementation plan for the next milestone. The native application does not yet authenticate accounts or perform network synchronization. The connected Google/Microsoft tools in Codex do not grant credentials to Daymark.
+Version 0.9 implements the first read-only transport stage: provider-library browser authorization, manual calendar discovery, bounded full event snapshots and an atomic SQLite cache. Actual account sign-in and live behavior still need end-to-end validation with registered OAuth apps. Two-way editing and incremental delta sync remain unimplemented. See [account setup](ACCOUNT_SETUP.md). The connected Google/Microsoft tools in Codex do not grant credentials to Daymark.
 
 ## Foundations already in the native core
 

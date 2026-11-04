@@ -64,6 +64,7 @@ public sealed partial class CalendarWindow : Window
     private readonly Button edit;
     private readonly Button delete;
     private bool refreshing;
+    private DateOnly? renderedToday;
     private readonly System.Windows.Threading.DispatcherTimer searchDelay = new() { Interval = TimeSpan.FromMilliseconds(180) };
     private readonly HashSet<string> hiddenCalendars = new(StringComparer.Ordinal);
     private readonly System.Windows.Controls.WrapPanel calendarFilters = new();
@@ -86,9 +87,22 @@ public sealed partial class CalendarWindow : Window
         LoadViewPreferences(); BuildLayout(testCalendar); NativeTheme.Attach(this);
         InputBindings.Add(new KeyBinding(new ActionCommand(NewEvent), Key.N, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(Export), Key.B, ModifierKeys.Control));
-        Activated += (_, _) => { NativeTheme.Refresh(); if (followDeviceZone) { TimeZoneInfo.ClearCachedData(); displayZone = TimeZoneInfo.Local; } Refresh(); };
+        Activated += (_, _) =>
+        {
+            NativeTheme.Refresh();
+            var zoneChanged = false;
+            if (followDeviceZone)
+            {
+                TimeZoneInfo.ClearCachedData();
+                var currentZone = TimeZoneInfo.Local;
+                zoneChanged = currentZone.Id != displayZone.Id || !currentZone.HasSameRules(displayZone);
+                displayZone = currentZone;
+            }
+            if (zoneChanged || renderedToday != CalendarTime.Today(displayZone)) Refresh();
+        };
         searchDelay.Tick += (_, _) => { searchDelay.Stop(); RefreshAgenda(); };
         Closed += (_, _) => searchDelay.Stop();
+        Loaded += async (_, _) => await LoadAccountsAsync();
         InputBindings.Add(new KeyBinding(new ActionCommand(() => { search.Focus(); search.SelectAll(); }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(GoToDate), Key.G, ModifierKeys.Control));
         Refresh();
@@ -116,10 +130,11 @@ public sealed partial class CalendarWindow : Window
     private void RefreshView()
     {
         refreshing = true;
+        renderedToday = CalendarTime.Today(displayZone);
         var visibleFirst = viewMode == CalendarViewMode.Month ? month.AddDays(-(((int)month.DayOfWeek + 6) % 7))
             : viewMode == CalendarViewMode.Day ? selected : WeekLayout.StartOfWeek(selected);
-        displayed = Recurrence.InRange(document, visibleFirst, viewMode == CalendarViewMode.Month ? 42 : viewMode == CalendarViewMode.Day ? 1 : 7, displayZone, hiddenCalendars);
-        CalendarPalette.Set(document.CalendarList); RefreshCalendarFilters();
+        displayed = Recurrence.InRange(ViewDocument, visibleFirst, viewMode == CalendarViewMode.Month ? 42 : viewMode == CalendarViewMode.Day ? 1 : 7, displayZone, hiddenCalendars);
+        CalendarPalette.Set(ViewDocument.CalendarList); RefreshCalendarFilters();
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
         if (viewMode != CalendarViewMode.Month)
         {
@@ -139,7 +154,7 @@ public sealed partial class CalendarWindow : Window
             monthTitle.FontSize = 26;
             RefreshMonth();
         }
-        refreshing = false; RefreshAgenda(); status.Text = $"Saved on this PC · {CalendarTime.ZoneId(displayZone)}";
+        refreshing = false; RefreshAgenda(); status.Text = $"Saved on this PC · {CalendarTime.ZoneId(displayZone)}" + CacheStatus;
         undoItem.Header = history.CanUndo ? $"_Undo {history.UndoDescription}" : "_Undo";
         redoItem.Header = history.CanRedo ? $"_Redo {history.RedoDescription}" : "_Redo";
         CommandManager.InvalidateRequerySuggested();
@@ -155,7 +170,7 @@ public sealed partial class CalendarWindow : Window
         {
             var date = start.AddDays(i);
             var items = visibleDays[i];
-            var button = new MonthDayButton(date, date.Month == month.Month, date == selected, date == CalendarTime.Today(displayZone), items,
+            var button = new MonthDayButton(date, date.Month == month.Month, date == selected, date == renderedToday, items,
                 () => { selected = date; search.Clear(); Refresh(); });
             Grid.SetRow(button, i / 7 + 1); Grid.SetColumn(button, i % 7); days.Children.Add(button);
         }
@@ -174,7 +189,7 @@ public sealed partial class CalendarWindow : Window
         if (refreshing) return;
         var query = search.Text.Trim();
         dayTitle.Text = query.Length == 0 ? selected.ToString("dddd, MMM d") : "Search results";
-        var items = query.Length == 0 ? displayed.On(selected).ToList() : CalendarSearch.Find(document, query, selected, displayZone, hiddenCalendars).ToList();
+        var items = query.Length == 0 ? displayed.On(selected).ToList() : CalendarSearch.Find(ViewDocument, query, selected, displayZone, hiddenCalendars).ToList();
         agenda.ItemsSource = items;
         agendaCount.Text = query.Length > 0 ? $"{items.Count}{(items.Count == 200 ? "+" : "")} results\nRepeats: past month + next year"
             : $"{items.Count} {(items.Count == 1 ? "event" : "events")}";
@@ -188,6 +203,7 @@ public sealed partial class CalendarWindow : Window
     private void Edit() { if (agenda.SelectedItem is CalendarEvent item) ShowEditor(item); }
     private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null)
     {
+        if (original is not null && IsProviderEvent(original)) { ShowProviderEvent(original); return; }
         if (original?.SeriesId is { } series)
         {
             var scope = new SeriesScopeDialog("Edit") { Owner = this };
@@ -237,6 +253,7 @@ public sealed partial class CalendarWindow : Window
     private void Delete()
     {
         if (agenda.SelectedItem is not CalendarEvent item) return;
+        if (IsProviderEvent(item)) { ShowProviderEvent(item); return; }
         var entire = true;
         if (item.SeriesId is not null)
         {
@@ -261,7 +278,9 @@ public sealed partial class CalendarWindow : Window
     private bool SameDataPath(string path) => string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".bak"), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase)
-        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v2.bak"), StringComparison.OrdinalIgnoreCase);
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v2.bak"), StringComparison.OrdinalIgnoreCase)
+        || Path.GetFullPath(path).StartsWith(Path.Combine(Path.GetDirectoryName(store.Path)!, "credentials") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+        || Path.GetFileName(path).StartsWith("accounts.sqlite", StringComparison.OrdinalIgnoreCase) && string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), Path.GetDirectoryName(store.Path), StringComparison.OrdinalIgnoreCase);
     private void Restore()
     {
         var picker = new OpenFileDialog { Filter = "Daymark native backup (*.json)|*.json" };

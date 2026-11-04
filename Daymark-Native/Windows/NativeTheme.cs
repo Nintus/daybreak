@@ -11,7 +11,7 @@ internal static class NativeTheme
     private sealed class Swatch : System.ComponentModel.INotifyPropertyChanged
     {
         private Color value;
-        public Color Value { get => value; set { this.value = value; PropertyChanged?.Invoke(this, new(nameof(Value))); } }
+        public Color Value { get => value; set { if (this.value == value) return; this.value = value; PropertyChanged?.Invoke(this, new(nameof(Value))); } }
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
     private static readonly Dictionary<string, Swatch> swatches = new();
@@ -85,16 +85,19 @@ internal static class NativeTheme
             ["TealSoft"] = ("#EAF6F2", "#193D3B"), ["Hover"] = ("#F1F5FB", "#2A3548"),
             ["Pressed"] = ("#E5EDF8", "#354660"), ["SelectedBorder"] = ("#99B9EE", "#78A7FF")
         };
+        var changed = false;
         foreach (var (key, pair) in colors)
         {
             var brush = Get(key);
             var color = (Color)ColorConverter.ConvertFromString(IsDark ? pair.Dark : pair.Light);
             if (SystemParameters.HighContrast) color = key is "Error" or "Ink" or "Muted" or "Line" or "AccentInk" or "Teal" or "Violet" or "Orange" or "Rose" ? SystemColors.WindowTextColor
                 : key == "OnAccent" ? SystemColors.HighlightTextColor : key is "Accent" or "SelectedBorder" ? SystemColors.HighlightColor : SystemColors.WindowColor;
+            if (swatches[key].Value == color && Application.Current.Resources["Theme" + key] == brush) continue;
             swatches[key].Value = color;
             Application.Current.Resources["Theme" + key] = brush;
+            changed = true;
         }
-        Changed?.Invoke();
+        if (changed) Changed?.Invoke();
     }
     public static void Attach(Window window)
     {
