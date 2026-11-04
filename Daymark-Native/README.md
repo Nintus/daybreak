@@ -107,3 +107,9 @@ The design avoids a browser runtime and has no idle polling or background networ
 Use **File → Calendar accounts** for Google/Microsoft setup, browser sign-in, calendar selection and manual read-only refresh. See [ACCOUNT_SETUP.md](docs/ACCOUNT_SETUP.md). Provider-expanded events remain separate from local editing/backup/history. The downloaded range is three months back and fifteen months forward at refresh time; cache coverage and oldest refresh appear in the status bar. No background polling is installed. Real sign-in still requires OAuth registrations and end-to-end validation. Two-way editing is not enabled.
 
 Unchanged window activations now retain the month visual tree; theme refreshes skip unchanged palette resources. Windows CI checks both behaviors and measures unattended idle CPU, rejecting failed launches. See [CPU and sync QA](QA-CPU-AND-SYNC.md) for evidence and limitations.
+
+## Theme studio
+
+Use **Appearance → Theme studio** for System, Light, Dark, OLED black, Ocean, Forest, Rose dusk or Custom. Custom accepts a native Windows color picker, quick swatches or a #RRGGBB value and generates matching surfaces, selection colors, borders and readable accent text. Choose a Light, Dark or OLED base. Changes preview immediately across the app; Save theme persists them, while Cancel or closing restores the previous theme. Invalid color text cannot be saved.
+
+OLED black uses pure #000000 canvas and calendar surfaces, with outlines and colored selection/event fills for legibility. Calendar colors retain their own identities. Windows high contrast takes priority. Existing appearance.txt choices migrate when saved; preferences remain separate from calendar backups. No battery-savings claim is made.

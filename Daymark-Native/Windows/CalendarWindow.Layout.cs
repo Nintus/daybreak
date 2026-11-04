@@ -44,15 +44,18 @@ public sealed partial class CalendarWindow
         var appearance = new MenuItem { Header = "_Appearance" };
         foreach (var mode in Enum.GetValues<AppThemeMode>())
         {
-            var option = new MenuItem { Header = mode == AppThemeMode.System ? "_System setting" : "_" + mode, IsCheckable = true, IsChecked = NativeTheme.Mode == mode };
+            var option = new MenuItem { Header = "_" + NativeTheme.Name(mode), IsCheckable = true, IsChecked = NativeTheme.Mode == mode };
             option.Click += (_, _) =>
             {
                 try { NativeTheme.Select(mode); }
                 catch (Exception error) { MessageBox.Show(this, $"Your appearance preference could not be saved.\n\n{error.Message}", "Appearance", MessageBoxButton.OK, MessageBoxImage.Error); }
-                foreach (MenuItem sibling in appearance.Items) sibling.IsChecked = (AppThemeMode)sibling.Tag == NativeTheme.Mode;
+                foreach (var sibling in appearance.Items.OfType<MenuItem>().Where(i => i.Tag is AppThemeMode)) sibling.IsChecked = (AppThemeMode)sibling.Tag == NativeTheme.Mode;
             };
             option.Tag = mode; appearance.Items.Add(option);
         }
+        appearance.Items.Add(new Separator());
+        appearance.Items.Add(MenuAction("_Theme studio…", () => new ThemeDialog { Owner = this }.ShowDialog()));
+        appearance.SubmenuOpened += (_, _) => { foreach (var entry in appearance.Items.OfType<MenuItem>().Where(i => i.Tag is AppThemeMode)) entry.IsChecked = (AppThemeMode)entry.Tag == NativeTheme.Mode; };
         menu.Items.Add(appearance);
         var help = new MenuItem { Header = "_Help" };
         help.Items.Add(MenuAction("Time _zones", () => MessageBox.Show(this,

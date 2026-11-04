@@ -21,6 +21,26 @@ internal static class Program
             Check(changes == 0 && ReferenceEquals(brush, NativeTheme.Ink), "100 identical theme refreshes preserve palette resources without notifications");
             NativeTheme.Select(AppThemeMode.Light);
             Check(changes == 1 && ReferenceEquals(brush, NativeTheme.Ink), "a theme change updates the existing shared palette exactly once");
+            foreach (var basis in Enum.GetValues<ThemeBase>())
+            foreach (var accent in new[] { "#000000", "#FFFFFF", "#FFFF00", "#FF0000", "#00FF00", "#0000FF", "#7986FF", "#E9A1BE" })
+            {
+                var palette = ThemePalette.Build(basis, accent);
+                if (ThemePalette.Contrast(palette["Accent"], palette["OnAccent"]) < 4.5 || ThemePalette.Contrast(palette["AccentInk"], palette["Soft"]) < 4.5 || ThemePalette.Contrast(palette["Muted"], palette["Surface"]) < 4.5) throw new Exception("Unreadable generated palette");
+                if (basis == ThemeBase.Oled && (palette["Background"] != System.Windows.Media.Colors.Black || palette["Surface"] != System.Windows.Media.Colors.Black)) throw new Exception("OLED surfaces must be pure black");
+            }
+            Check(true, "extreme accent colors retain readable generated text and pure black OLED surfaces");
+            var preferencePath = Path.Combine(folder, "appearance.txt");
+            var previousBytes = File.ReadAllText(preferencePath);
+            var previousSettings = NativeTheme.Settings;
+            NativeTheme.Preview(new(AppThemeMode.Custom, "#63C4A0", ThemeBase.Oled));
+            Check(File.ReadAllText(preferencePath) == previousBytes, "theme previews never persist settings");
+            NativeTheme.Preview(previousSettings);
+            using (var themes = new WindowLifetime(new ThemeDialog())) { NativeTheme.Preview(new(AppThemeMode.Oled)); }
+            Check(NativeTheme.Settings == previousSettings, "closing the theme studio without saving restores the original palette");
+            NativeTheme.Save(new(AppThemeMode.Custom, "#E9A1BE", ThemeBase.Dark));
+            var stored = System.Text.Json.JsonSerializer.Deserialize<ThemeSettings>(File.ReadAllText(preferencePath));
+            Check(stored == NativeTheme.Settings, "custom accent and base persist together");
+            NativeTheme.Select(AppThemeMode.Light);
             var store = new CalendarStore(Path.Combine(folder, "calendar.json"));
             var window = new CalendarWindow(store, CalendarDocument.Empty(), true);
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -45,7 +65,7 @@ internal static class Program
             using var dialog = new WindowLifetime(new AccountsDialog(new AccountService(folder)));
             Check(dialog.Window.Content is DockPanel, "native account manager constructs with an isolated cache");
             window.Close(); app.Shutdown();
-            Console.WriteLine("8 Windows checks passed");
+            Console.WriteLine("12 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
