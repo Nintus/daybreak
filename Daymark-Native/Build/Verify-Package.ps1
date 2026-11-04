@@ -19,7 +19,7 @@ foreach ($name in $binaries) {
 }
 if (Test-Path -LiteralPath (Join-Path $packageRoot 'TestCalendar')) { throw 'Do not distribute QA calendar data.' }
 if (Get-ChildItem -LiteralPath $packageRoot -Recurse -Force | Where-Object { $_.Name -eq 'credentials' -or $_.Name -like 'accounts.sqlite*' }) { throw 'Do not distribute connected-account data or credential caches.' }
-foreach ($required in @('LICENSE.txt', 'README.md', 'ROADMAP.md', 'INTEGRATION-MILESTONE.md', 'docs/ACCOUNT_SETUP.md', 'docs/PROVIDER_INTEGRATION.md', 'QA/QA-INTEGRATION-READINESS.md', 'docs/CODE_SIGNING.md',
+foreach ($required in @('Assets/Manrope-OFL.txt', 'docs/BRAND.md', 'LICENSE.txt', 'README.md', 'ROADMAP.md', 'INTEGRATION-MILESTONE.md', 'docs/ACCOUNT_SETUP.md', 'docs/PROVIDER_INTEGRATION.md', 'QA/QA-INTEGRATION-READINESS.md', 'docs/CODE_SIGNING.md',
         'docs/PRIVACY.md', 'docs/SIGNPATH_READINESS.md')) {
     if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $required) -PathType Leaf)) {
         throw "Missing package documentation: $required"

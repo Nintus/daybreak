@@ -8,8 +8,12 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Daymark</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/Daymark.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/Daymark.ico" />
+    <Resource Include="Assets/manrope-semibold.ttf" />
+    <None Update="Assets/Manrope-OFL.txt" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../Core/Daymark.Core.csproj" />
     <ProjectReference Include="../Providers/Daymark.Providers.csproj" />
     <PackageReference Include="Google.Apis.Auth" Version="1.78.0" />

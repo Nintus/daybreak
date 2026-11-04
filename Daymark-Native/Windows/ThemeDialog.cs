@@ -45,7 +45,7 @@ internal sealed class ThemeDialog : Window
             if (ColorPicker.Choose(this, ThemePalette.Parse(current)) is { } color) hex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         };
         var swatches = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) }; custom.Children.Add(swatches);
-        foreach (var color in new[] { "#7986FF", "#48B5EC", "#51BCA0", "#D6A65C", "#E48DAF", "#BA91ED", "#EA7A67", "#8996A8" })
+        foreach (var color in new[] { "#7C83FF", "#48B5EC", "#51BCA0", "#D6A65C", "#E48DAF", "#BA91ED", "#EA7A67", "#8996A8" })
         {
             var button = new Button { Width = 36, Height = 30, Margin = new Thickness(0, 0, 8, 8), ToolTip = color, Background = new SolidColorBrush(ThemePalette.Parse(color)) };
             // A swatch uses its own template so theme hover colors never obscure its color.

@@ -83,6 +83,8 @@ internal static class Program
                 "completed transitions release clocks and return to the element's base opacity");
             NativeMotion.Reveal(motionSurface); motionWindow.Close();
             Check(NativeMotion.ActiveCount == 0, "closing an animating surface releases its motion state");
+            Check(new System.Windows.Media.Typeface(HorizonBrand.Wordmark, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var brandFont) && brandFont.FontUri.ToString().Contains("manrope", StringComparison.OrdinalIgnoreCase), "bundled Horizon wordmark font resolves");
+            Check(((System.Windows.Media.Imaging.BitmapFrame)HorizonBrand.Icon).PixelWidth > 0 && HorizonBrand.Logo(40) is Viewbox, "Horizon window icon and scalable mark load from app resources");
             var auth = new AccountAuthorization(folder);
             auth.Configure(new("fixture.apps.googleusercontent.com", "synthetic-secret", "11111111-1111-1111-1111-111111111111"));
             Check(new AccountAuthorization(folder).Applications.GoogleClientSecret == "synthetic-secret", "OAuth setup survives a protected-cache round trip");
@@ -96,7 +98,7 @@ internal static class Program
             using var dialog = new WindowLifetime(new AccountsDialog(new AccountService(folder)));
             Check(dialog.Window.Content is DockPanel, "native account manager constructs with an isolated cache");
             window.Close(); app.Shutdown();
-            Console.WriteLine("20 Windows checks passed");
+            Console.WriteLine("22 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }

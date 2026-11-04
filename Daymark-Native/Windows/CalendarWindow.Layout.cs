@@ -96,10 +96,9 @@ public sealed partial class CalendarWindow
         search.TextChanged += (_, _) => { searchDelay.Stop(); searchDelay.Start(); }; actions.Children.Add(search);
         var create = Button("＋ _New event", (_, _) => NewEvent()); create.Style = NativeTheme.Style("PrimaryButton"); create.Padding = new Thickness(15, 9, 15, 9); actions.Children.Add(create);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        brand.Children.Add(new Border { Background = NativeTheme.Accent, Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 11, 0),
-            Child = new TextBlock { Text = "\uE787", FontFamily = new FontFamily("Segoe MDL2 Assets"), Foreground = NativeTheme.OnAccent, FontSize = 20,
-                VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center } });
-        brand.Children.Add(new TextBlock { Text = "Daymark", FontSize = 25, Foreground = NativeTheme.Ink, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var logo = HorizonBrand.Logo(40); logo.Margin = new Thickness(0, 0, 10, 0); logo.IsHitTestVisible = false;
+        brand.Children.Add(logo);
+        brand.Children.Add(new TextBlock { Text = "Daymark", FontFamily = HorizonBrand.Wordmark, FontSize = 27, Foreground = NativeTheme.Ink, VerticalAlignment = VerticalAlignment.Center });
         if (testCalendar) brand.Children.Add(new TextBlock { Text = "TEST", Foreground = NativeTheme.Muted, FontSize = 10, FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }); header.Children.Add(brand);
 

@@ -3,7 +3,7 @@ using System.Windows.Media;
 namespace Daymark.Windows;
 
 internal enum ThemeBase { Light, Dark, Oled }
-internal sealed record ThemeSettings(AppThemeMode Mode = AppThemeMode.System, string Accent = "#7986FF", ThemeBase Base = ThemeBase.Dark);
+internal sealed record ThemeSettings(AppThemeMode Mode = AppThemeMode.System, string Accent = "#7C83FF", ThemeBase Base = ThemeBase.Dark);
 
 internal static class ThemePalette
 {
@@ -28,7 +28,7 @@ internal static class ThemePalette
     public static Dictionary<string, Color> Build(ThemeBase basis, string hex)
     {
         var seed = Parse(hex); var dark = basis != ThemeBase.Light; var oled = basis == ThemeBase.Oled;
-        var background = oled ? Colors.Black : dark ? Mix(Color.FromRgb(18, 20, 25), seed, .035) : Mix(Color.FromRgb(247, 248, 250), seed, .025);
+        var background = oled ? Colors.Black : dark ? Mix(Color.FromRgb(20, 22, 27), seed, .035) : Mix(Color.FromRgb(247, 246, 242), seed, .025);
         var surface = oled ? Colors.Black : dark ? Mix(Color.FromRgb(28, 31, 38), seed, .045) : Colors.White;
         var soft = Mix(surface, seed, dark ? .18 : .1);
         var accent = Readable(seed, surface, 4.5);
