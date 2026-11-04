@@ -37,7 +37,7 @@ internal static class ThemePalette
         {
             ["Background"] = background, ["Surface"] = surface,
             ["Ink"] = dark ? Color.FromRgb(239, 241, 246) : Color.FromRgb(27, 32, 43),
-            ["Muted"] = Readable(Mix(surface, dark ? Colors.White : Colors.Black, .60), surface, 4.5),
+            ["Muted"] = Readable(Readable(Mix(surface, dark ? Colors.White : Colors.Black, .60), background, 4.5), surface, 4.5),
             ["Line"] = Mix(surface, dark ? Colors.White : Colors.Black, oled ? .23 : .16),
             ["Accent"] = accent, ["OnAccent"] = onAccent,
             ["AccentInk"] = Readable(seed, soft, 4.5), ["Soft"] = soft,

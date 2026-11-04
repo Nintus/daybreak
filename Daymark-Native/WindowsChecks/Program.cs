@@ -25,7 +25,7 @@ internal static class Program
             foreach (var accent in new[] { "#000000", "#FFFFFF", "#FFFF00", "#FF0000", "#00FF00", "#0000FF", "#7986FF", "#E9A1BE" })
             {
                 var palette = ThemePalette.Build(basis, accent);
-                if (ThemePalette.Contrast(palette["Accent"], palette["OnAccent"]) < 4.5 || ThemePalette.Contrast(palette["AccentInk"], palette["Soft"]) < 4.5 || ThemePalette.Contrast(palette["Muted"], palette["Surface"]) < 4.5) throw new Exception("Unreadable generated palette");
+                if (ThemePalette.Contrast(palette["Accent"], palette["OnAccent"]) < 4.5 || ThemePalette.Contrast(palette["AccentInk"], palette["Soft"]) < 4.5 || ThemePalette.Contrast(palette["Muted"], palette["Surface"]) < 4.5 || ThemePalette.Contrast(palette["Muted"], palette["Background"]) < 4.5) throw new Exception("Unreadable generated palette");
                 if (basis == ThemeBase.Oled && (palette["Background"] != System.Windows.Media.Colors.Black || palette["Surface"] != System.Windows.Media.Colors.Black)) throw new Exception("OLED surfaces must be pure black");
             }
             Check(true, "extreme accent colors retain readable generated text and pure black OLED surfaces");
