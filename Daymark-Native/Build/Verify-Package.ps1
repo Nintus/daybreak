@@ -17,7 +17,8 @@ foreach ($name in $binaries) {
         throw "Inconsistent Daymark product/version metadata: $name"
     }
 }
-foreach ($required in @('LICENSE.txt', 'README.md', 'ROADMAP.md', 'docs/CODE_SIGNING.md',
+if (Test-Path -LiteralPath (Join-Path $packageRoot 'TestCalendar')) { throw 'Do not distribute QA calendar data.' }
+foreach ($required in @('LICENSE.txt', 'README.md', 'ROADMAP.md', 'INTEGRATION-MILESTONE.md', 'docs/PROVIDER_INTEGRATION.md', 'QA/QA-INTEGRATION-READINESS.md', 'docs/CODE_SIGNING.md',
         'docs/PRIVACY.md', 'docs/SIGNPATH_READINESS.md')) {
     if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $required) -PathType Leaf)) {
         throw "Missing package documentation: $required"

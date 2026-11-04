@@ -26,8 +26,9 @@ public sealed class EventEditor : Window
     {
         NativeTheme.Attach(this);
         Title = original is null ? "New event" : "Edit event";
-        Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height;
-        ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Width = 560; Height = Math.Min(860, SystemParameters.WorkArea.Height - 32); MinWidth = 500;
+        MinHeight = Math.Min(480, Height); MaxHeight = SystemParameters.WorkArea.Height;
+        ResizeMode = ResizeMode.CanResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = new System.Windows.Media.FontFamily("Segoe UI"); FontSize = 14;
         Background = NativeTheme.Surface; Foreground = NativeTheme.Ink;
         var root = new DockPanel(); Content = root;
@@ -52,6 +53,10 @@ public sealed class EventEditor : Window
         foreach (var date in new[] { startDate, endDate }) date.Loaded += (_, _) =>
         {
             if (date.Template.FindName("PART_TextBox", date) is DatePickerTextBox text) text.Style = NativeTheme.Style("DateField");
+        };
+        foreach (var date in new[] { startDate, endDate }) date.DateValidationError += (_, args) =>
+        {
+            args.ThrowException = false; date.SelectedDate = null; error.Text = "Choose a valid start and end date.";
         };
         calendars ??= [CalendarDefinition.Personal];
         var calendar = new ComboBox { ItemsSource = calendars, DisplayMemberPath = "Name", SelectedValuePath = "Id",

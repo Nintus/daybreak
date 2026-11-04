@@ -16,6 +16,7 @@ public sealed partial class CalendarWindow
         var date = new DatePicker { SelectedDate = selected.ToDateTime(TimeOnly.MinValue), DisplayDateStart = new DateTime(2, 1, 1), DisplayDateEnd = new DateTime(9998, 12, 31) };
         System.Windows.Automation.AutomationProperties.SetName(date, "Go to date"); panel.Children.Add(date);
         var error = new TextBlock { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap }; panel.Children.Add(error);
+        date.DateValidationError += (_, args) => { args.ThrowException = false; date.SelectedDate = null; error.Text = "Choose a valid date."; };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         actions.Children.Add(new Button { Content = "Cancel", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) });
         var go = new Button { Content = "_Go", IsDefault = true, Style = NativeTheme.Style("PrimaryButton") }; actions.Children.Add(go); panel.Children.Add(actions);

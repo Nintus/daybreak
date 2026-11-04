@@ -39,6 +39,7 @@ internal sealed class RecurrenceFields : StackPanel
         count.Text = (rule?.Count ?? 10).ToString(); until.SelectedDate = (rule?.Until ?? DateOnly.FromDayNumber(Math.Min(DateOnly.MaxValue.DayNumber, DateOnly.FromDateTime(start).DayNumber + 90))).ToDateTime(TimeOnly.MinValue);
         UpdateStart(start);
         frequency.SelectionChanged += (_, _) => Update(); ending.SelectionChanged += (_, _) => Update(); Update();
+        until.DateValidationError += (_, args) => { args.ThrowException = false; until.SelectedDate = null; };
         System.Windows.Automation.AutomationProperties.SetName(frequency, "Repeat frequency");
         System.Windows.Automation.AutomationProperties.SetName(interval, "Repeat interval");
         System.Windows.Automation.AutomationProperties.SetName(ending, "Repeat ending");
