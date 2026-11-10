@@ -25,4 +25,6 @@ The current acceptance bar is [account-integration readiness](INTEGRATION-MILEST
 
 Version 0.10 adds a reviewed import flow for Fantastical/Thunderbird/classic Outlook identity metadata, compatible appearance/default-duration preferences and supported .ics exports. Imported accounts are sign-in drafts, not active connections. Private databases and unsupported recurrence patterns require export or later work; see [migration scope](docs/IMPORT.md). It does not remove the OAuth-registration or live-provider QA requirements.
 
-Once native QA and Windows package checks meet that bar, begin Google and Microsoft authorization and read-only calendar discovery, then implement guarded writes. Follow the [provider integration plan](docs/PROVIDER_INTEGRATION.md). Reminder delivery still needs its own Windows lifecycle design and observed banner verification. Do not delay beginning account integration for every remaining paid-calendar feature, and do not claim sync is complete from the planning tests.
+Version 0.12 adds reviewed Quick Add phrases, local reminders with saved snoozes and dismissals, and optional tray operation. Daymark presents reminders in its own window while it runs. Automatic launch after a reboot and Windows Notification Center integration remain separate work.
+
+Follow the [provider integration plan](docs/PROVIDER_INTEGRATION.md) for live authorization QA and guarded writes. Do not delay account integration for every remaining paid-calendar feature or claim sync is complete from the planning tests.

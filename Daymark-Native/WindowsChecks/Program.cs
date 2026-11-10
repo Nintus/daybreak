@@ -134,18 +134,56 @@ internal static class Program
                 var endField = (TextBox)typeof(EventEditor).GetField("endTime", flags)!.GetValue(editor.Window)!;
                 Check(endField.Text == "09:45", "new-event editor uses the imported default duration");
             }
+            var phraseDay = new DateOnly(2026, 11, 4);
+            var preset = QuickEventParser.Parse("Team review today at 9am for 45m every week remind 27m before", phraseDay, 60, "personal");
+            var review = new EventEditor(phraseDay, null, defaultZone: TimeZoneInfo.Utc, preset: preset);
+            review.Loaded += (_, _) => review.Dispatcher.InvokeAsync(() =>
+            {
+                FindButtons(review).Single(button => button.IsDefault).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if (review.Result is null) review.Close();
+            });
+            Check(review.ShowDialog() == true && review.Result is { ReminderMinutes: 27, StartUtc: not null } saved &&
+                saved.Title == preset.Title && saved.Start == preset.Start && saved.End == preset.End && saved.Recurrence?.Frequency == RecurrenceFrequency.Weekly,
+                "reviewing a Quick Add draft uses the native editor and preserves its timing, repeat and custom reminder");
+
+            var reminderFolder = Path.Combine(folder, "reminders"); Directory.CreateDirectory(reminderFolder);
+            File.WriteAllText(Path.Combine(reminderFolder, "keep-in-tray.txt"), "");
+            var dueUtc = DateTime.UtcNow.AddSeconds(3);
+            var dueWall = DateTime.SpecifyKind(dueUtc, DateTimeKind.Unspecified);
+            var reminderEvent = CalendarTime.Anchor(new(Guid.NewGuid(), "Test tray reminder", dueWall, dueWall.AddMinutes(30), ReminderMinutes: 0), TimeZoneInfo.Utc);
+            var trayWindow = new CalendarWindow(new CalendarStore(Path.Combine(reminderFolder, "calendar.json")), new(3, [reminderEvent]), true);
+            var closed = false;
+            trayWindow.Closed += (_, _) => closed = true;
+            trayWindow.Show();
+            PumpUntil(() => trayWindow.IsLoaded);
+            trayWindow.Close();
+            Check(!trayWindow.IsVisible && !closed, "closing an opted-in calendar hides it to the notification area");
+            PumpUntil(() => app.Windows.OfType<ReminderWindow>().Any(popup => popup.IsVisible));
+            var reminderWindow = app.Windows.OfType<ReminderWindow>().Single();
+            Check(!trayWindow.IsVisible && reminderWindow.IsVisible, "a scheduled reminder window opens while the calendar is hidden");
+            FindButtons(reminderWindow).Single(button => (string?)button.Content == "Snooze 5 min").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var reminderState = new ReminderStateStore(Path.Combine(reminderFolder, ReminderStateStore.FileName)).Load();
+            Check(reminderState.Values.Single() > DateTime.UtcNow && !reminderWindow.IsVisible, "snoozing a reminder persists its new deadline and closes the alert");
+            typeof(CalendarWindow).GetMethod("QuitDaymark", flags)!.Invoke(trayWindow, null);
+            Check(closed && typeof(CalendarWindow).GetField("tray", flags)!.GetValue(trayWindow) is null, "explicit quit closes a hidden calendar and releases its tray icon");
             window.Close(); app.Shutdown();
-            Console.WriteLine("28 Windows checks passed");
+            Console.WriteLine("33 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
     private static void Check(bool result, string name) { if (!result) throw new Exception(name); Console.WriteLine("PASS " + name); }
+    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    {
+        if (root is Button button) yield return button;
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+            foreach (var descendant in FindButtons(child)) yield return descendant;
+    }
     private static void PumpUntil(Func<bool> done)
     {
         var frame = new System.Windows.Threading.DispatcherFrame(); var expiry = DateTime.UtcNow.AddSeconds(10);
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
         timer.Tick += (_, _) => { if (done() || DateTime.UtcNow > expiry) { timer.Stop(); frame.Continue = false; } }; timer.Start();
-        System.Windows.Threading.Dispatcher.PushFrame(frame); if (!done()) throw new Exception("Migration operation timed out");
+        System.Windows.Threading.Dispatcher.PushFrame(frame); if (!done()) throw new Exception("Windows operation timed out");
     }
     private sealed class WindowLifetime(Window window) : IDisposable { public Window Window => window; public void Dispose() => window.Close(); }
 }

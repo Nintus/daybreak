@@ -6,7 +6,8 @@ namespace Daymark.Core;
 public sealed record CalendarEvent(Guid Id, string Title, DateTime Start, DateTime End,
     bool AllDay = false, string Location = "", string Notes = "", string? TimeZoneId = null,
     DateTime? StartUtc = null, DateTime? EndUtc = null, string CalendarId = "personal",
-    RecurrenceRule? Recurrence = null, Guid? SeriesId = null, DateTime? OriginalStart = null, bool IsCancelled = false)
+    RecurrenceRule? Recurrence = null, Guid? SeriesId = null, DateTime? OriginalStart = null, bool IsCancelled = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? ReminderMinutes = null)
 {
     public void Validate()
     {
@@ -14,6 +15,8 @@ public sealed record CalendarEvent(Guid Id, string Title, DateTime Start, DateTi
         if (SeriesId is not null && (SeriesId == Guid.Empty || OriginalStart is not { Kind: DateTimeKind.Unspecified } || Recurrence is not null) ||
             SeriesId is null && (OriginalStart is not null || IsCancelled)) throw new InvalidDataException("Invalid recurring occurrence identity.");
         Recurrence?.Validate(Start);
+        if (ReminderMinutes is < 0 or > ReminderPlanner.MaximumLeadMinutes)
+            throw new InvalidDataException("Choose a reminder between the event start and one week before it.");
         if (Id == Guid.Empty || string.IsNullOrWhiteSpace(Title) || Title.Length > 300)
             throw new InvalidDataException("Give the event a title of at most 300 characters.");
         if (TimeZoneId is null)
@@ -53,11 +56,16 @@ public sealed record CalendarDocument(int Version, List<CalendarEvent> Events, L
 {
     public static CalendarDocument Empty() => new(3, [], [CalendarDefinition.Personal]);
     [JsonIgnore] public IReadOnlyList<CalendarDefinition> CalendarList => Calendars ?? [CalendarDefinition.Personal];
-    public CalendarDocument Upgrade() => this with { Version = 3, Calendars = [.. CalendarList] };
+    public CalendarDocument Upgrade() => this with
+    {
+        // Older previews must reject a file whose reminders they would discard on save.
+        Version = Events.Any(item => item.ReminderMinutes.HasValue) ? 4 : 3,
+        Calendars = [.. CalendarList]
+    };
     public CalendarDocument InZone(TimeZoneInfo zone) => this with { Events = Events.Select(e => CalendarTime.InZone(e, zone)).ToList() };
     public void Validate()
     {
-        if (Version is not (1 or 2 or 3) || Events is null || Events.Count > 100000)
+        if (Version is not (1 or 2 or 3 or 4) || Events is null || Events.Count > 100000)
             throw new InvalidDataException("This is not a supported Daymark native backup.");
         if (CalendarList.Count is < 1 or > 100) throw new InvalidDataException("Keep between 1 and 100 calendars.");
         var calendarIds = new HashSet<string>(StringComparer.Ordinal);
@@ -134,7 +142,7 @@ public sealed class CalendarStore(string path)
     {
         document.Validate();
         document = document.Upgrade();
-        var oldVersion = File.Exists(Path) ? ReadDocument(Path).Version : 3;
+        var oldVersion = File.Exists(Path) ? ReadDocument(Path).Version : document.Version;
         var directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!;
         Directory.CreateDirectory(directory);
         var temporary = System.IO.Path.Combine(directory, $".daymark-{Guid.NewGuid():N}.tmp");
@@ -147,7 +155,7 @@ public sealed class CalendarStore(string path)
                 stream.Write(data);
                 stream.Flush(flushToDisk: true);
             }
-            if (oldVersion < 3 && !File.Exists(Path + $".v{oldVersion}.bak")) PreserveLegacy(directory, oldVersion);
+            if (oldVersion < document.Version && !File.Exists(Path + $".v{oldVersion}.bak")) PreserveLegacy(directory, oldVersion);
             if (File.Exists(Path)) File.Replace(temporary, Path, Path + ".bak");
             else File.Move(temporary, Path);
         }

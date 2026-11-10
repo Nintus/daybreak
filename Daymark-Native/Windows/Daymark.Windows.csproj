@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -11,6 +12,8 @@
     <ApplicationIcon>Assets/Daymark.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
     <Resource Include="Assets/Daymark.ico" />
     <Resource Include="Assets/manrope-semibold.ttf" />
     <None Update="Assets/Manrope-OFL.txt" CopyToPublishDirectory="PreserveNewest" />

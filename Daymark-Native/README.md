@@ -55,13 +55,21 @@ Read the [code signing policy](docs/CODE_SIGNING.md), [privacy policy](docs/PRIV
 
 Events save to `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful state is `calendar.json.bak`. Saves validate the entire document, flush a temporary file, and replace the data file. Invalid imports do not replace existing data. Startup stops if the data file is damaged and displays its location instead of overwriting it with an empty calendar.
 
-Closing the window exits the app. It does not install a startup service, remain in the tray, poll providers, or run reminder timers. A single-instance guard prevents ordinary duplicate launches in the same Windows session.
+Closing the window exits the app by default. Enable **Reminders → Keep running after closing** to keep local reminders active in the Windows notification area. Use **File → Exit** or **Quit Daymark** in the tray to quit. Launch Daymark again after signing in to Windows. A single-instance guard prevents duplicate launches of the same calendar in a Windows session.
+
+## Quick Add and reminders
+
+Use **Ctrl+Shift+N** to open Quick Add. Try `Lunch tomorrow at noon for 45m` or `Focus next Monday at 9am every week remind 15m before`. Use English weekday names, `today`, `tomorrow`, or a date such as `2026-12-15`. A phrase with a date and no time creates an all-day draft. Choose **Review event** to check the draft, calendar and time zone in the standard editor before saving.
+
+Use the event editor to set a reminder for a local event or series. Timed reminders count back from the event start. All-day reminders count back from 9 AM in the device time zone. Daymark's reminder window offers **Dismiss** and **Snooze 5 min**, with both choices saved for the individual alert. **Reminders → Show reminders** reopens the due list. While Daymark is running, it checks the next deadline and replans after calendar edits, device clock changes and resume. After restart or sleep, reminders can still appear for up to 12 hours after their deadline and before their event ends.
+
+Native backups carry event reminder settings. Calendars with reminders use version 4 and require Daymark v0.12 or later. The first upgrade from version 3 preserves the previous file in `calendar.json.v3.bak`. Snoozes and dismissals live separately in `reminder-state.json`. Set reminders in Daymark after importing an `.ics` file.
 
 Use **File → Import from another app…** to review discovered Fantastical, classic Outlook and Thunderbird account identities, compatible settings, and local .ics files. Imported Google/Microsoft profiles appear in **Calendar accounts** with sign-in hints; iCloud/CalDAV profiles are listed pending provider support. Add exported .ics files manually when a source uses a private database. See [migration support and limits](docs/IMPORT.md).
 
 Use **File → Export calendar (.ics)…** to save one local calendar for an inclusive date range of up to 1,096 days. Daymark uses its display time zone to select overlapping events and includes each event's full duration. Repeating events become individual occurrences, including moves and edits. Skipped occurrences stay out of the file. Use **Save backup** to preserve complete repeating series and all local calendars.
 
-Reminders, tasks, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Tasks, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
 
 All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, `Ctrl+F` for search, `Ctrl+G` for Go to Date, and Escape to cancel the editor are available.
 
@@ -90,7 +98,7 @@ Copy the complete output folder. ARM64 Windows needs a separate `win-arm64` buil
 
 ## Validation performed
 
-The portable test suite has 140 checks covering storage, visible-range boundaries, timeline overlap layout, navigation, undo/redo, timezone conversion, DST gaps/folds, fractional offsets, recurrence/exception semantics, calendar identity, migration, three-way sync planning, scoped pagination and retry classification. These are local fixtures, not live provider integration tests. Windows checks additionally exercise migration preview, selected imports/settings, repeat imports, account rows and the new-event duration. The month view scans the projected event collection once per refresh instead of once for every visible day. This reduces repeated work; it is not yet a claim about large-calendar performance.
+The portable test suite covers storage, time zones, recurrence and exceptions, import and export, sync planning, Quick Add parsing, and reminder deadlines and recovery. Windows checks exercise the native editor, migration preview, tray lifecycle and the reminder window with local fixtures. The month view scans the projected event collection once per refresh.
 
 Before relying on the app, check these on Windows with disposable events using the test calendar:
 

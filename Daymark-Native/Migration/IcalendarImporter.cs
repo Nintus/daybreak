@@ -58,7 +58,7 @@ public static class IcalendarImporter
         // Calendar name + UID keeps a repeated export stable across paths and file renames.
         var definition = new CalendarDefinition("import-" + ImportIdentity.Guid("calendar:" + name).ToString("N"), name[..Math.Min(name.Length, 80)], "Teal");
         var warnings = new List<string>(); var events = new List<CalendarEvent>();
-        if (alarms) warnings.Add("Reminders are not imported; Daymark does not yet schedule alarms.");
+        if (alarms) warnings.Add("Reminders from the calendar file were skipped. You can set reminders in Daymark after importing.");
         if (otherComponents) warnings.Add("Tasks, journals and free/busy components are not imported.");
         if (text.Contains("BEGIN:VTIMEZONE", StringComparison.OrdinalIgnoreCase)) warnings.Add("Time zones use the computer's installed rules. Custom VTIMEZONE definitions are not converted; unknown zone IDs are skipped.");
         if (rows.Any(r => r.Any(p => p.Name is "ATTENDEE" or "ORGANIZER" or "ATTACH" or "TRANSP" or "STATUS" or "CLASS" or "CATEGORIES" or "URL")))

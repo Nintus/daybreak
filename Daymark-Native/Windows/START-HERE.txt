@@ -15,7 +15,12 @@ This preview supports timezone-aware events, month/week/day
 views, calendars with colors/visibility, recurring events and exceptions, search,
 undo/redo, Horizon branding, Theme studio and backup/restore. Google/Microsoft
 manual read-only sync requires your OAuth setup (see docs/ACCOUNT_SETUP.md).
-Two-way editing, reminders and importing web calendar data are not implemented.
+Two-way provider editing and importing web calendar data are not implemented.
+
+Use Ctrl+Shift+N for Quick Add. Try "Lunch tomorrow at noon for 45m", then
+review the draft in the event editor. Set local event reminders in that editor.
+Reminders > Keep running after closing keeps Daymark in the notification area.
+Use File > Exit or the tray's Quit Daymark action to stop it.
 
 Use File > Import from another app to scan Fantastical, classic Outlook and
 Thunderbird identities and local .ics files. Review items before importing.
