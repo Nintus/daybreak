@@ -134,14 +134,29 @@ public sealed partial class CalendarWindow : Window
     {
         refreshing = true;
         renderedToday = CalendarTime.Today(displayZone);
-        var visibleFirst = viewMode == CalendarViewMode.Month ? month.AddDays(-(((int)month.DayOfWeek + 6) % 7))
-            : viewMode == CalendarViewMode.Day ? selected : WeekLayout.StartOfWeek(selected);
+        ApplyCalendarVisibility();
+        var (visibleFirst, visibleDays) = viewMode switch
+        {
+            CalendarViewMode.Month => (WeekLayout.StartOfWeek(month), 42),
+            CalendarViewMode.Week => (WeekLayout.StartOfWeek(selected), 7),
+            CalendarViewMode.Agenda => (selected, CalendarAgenda.Days),
+            _ => (selected, 1)
+        };
         var nextRange = (visibleFirst, viewMode);
         var transition = renderedRange is not null && renderedRange != nextRange;
-        displayed = Recurrence.InRange(ViewDocument, visibleFirst, viewMode == CalendarViewMode.Month ? 42 : viewMode == CalendarViewMode.Day ? 1 : 7, displayZone, hiddenCalendars);
+        displayed = Recurrence.InRange(ViewDocument, visibleFirst, visibleDays, displayZone, hiddenCalendars);
         CalendarPalette.Set(ViewDocument.CalendarList); RefreshCalendarFilters();
         if (calendarContent.Content is WeekView current) weekOffset = current.VerticalOffset;
-        if (viewMode != CalendarViewMode.Month)
+        if (viewMode == CalendarViewMode.Agenda)
+        {
+            monthTitle.Text = $"{visibleFirst:MMM d} – {visibleFirst.AddDays(visibleDays - 1):MMM d, yyyy}";
+            monthTitle.FontSize = 20;
+            var tasks = visibility.ActiveSet?.ShowTasks == false ? [] : document.TaskList;
+            calendarContent.Content = new AgendaView(CalendarAgenda.Group(displayed, tasks, visibleFirst),
+                date => { viewButtons[CalendarViewMode.Day].IsChecked = true; SelectDay(date); },
+                item => ShowEditor(item), EditAgendaTask, task => SaveAgendaTask(task with { IsCompleted = true }, "complete task"));
+        }
+        else if (viewMode is CalendarViewMode.Day or CalendarViewMode.Week)
         {
             var first = WeekLayout.StartOfWeek(selected);
             monthTitle.Text = viewMode == CalendarViewMode.Day ? selected.ToString("ddd, MMM d, yyyy")
@@ -151,7 +166,7 @@ public sealed partial class CalendarWindow : Window
                 date => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); },
                 item => ShowEditor(item),
                 (date, time) => { selected = date; month = new(date.Year, date.Month, 1); search.Clear(); Refresh(); ShowEditor(null, time); },
-                weekOffset, viewMode == CalendarViewMode.Day, CalendarTime.Today(displayZone));
+                weekOffset, viewMode == CalendarViewMode.Day, CalendarTime.Today(displayZone), MoveEvent, item => !IsProviderEvent(item));
         }
         else
         {
@@ -233,8 +248,9 @@ public sealed partial class CalendarWindow : Window
         var selectionBeforeEdit = selected;
         while (true)
         {
-            var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, document.CalendarList.FirstOrDefault(c => !hiddenCalendars.Contains(c.Id))?.Id,
-                new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes, preset) { Owner = this };
+            var linked = original is not null && document.TaskList.Any(task => task.ScheduledEventId == original.Id);
+            var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, DefaultCalendarId(),
+                new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes, preset, timeBlock: linked) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
             preset = null;
@@ -246,7 +262,10 @@ public sealed partial class CalendarWindow : Window
             catch (Exception error) { MessageBox.Show(this, error.Message, "Invalid event", MessageBoxButton.OK, MessageBoxImage.Warning); continue; }
             if (!Save(next, original is null ? "create event" : draft.SeriesId is not null ? "edit occurrence" : "edit event")) continue;
             selected = original is not null && draft.Recurrence is not null ? selectionBeforeEdit : DateOnly.FromDateTime(CalendarTime.InZone(draft, displayZone).Start); month = new(selected.Year, selected.Month, 1);
-            search.Clear(); Refresh(); agenda.Focus(); return;
+            search.Clear(); Refresh();
+            if (hiddenCalendars.Contains(draft.CalendarId))
+                status.Text = $"Saved to {CalendarPalette.Name(draft.CalendarId)} · hidden in the current calendar view";
+            agenda.Focus(); return;
         }
     }
     private bool Save(CalendarDocument next, string description)
@@ -303,8 +322,11 @@ public sealed partial class CalendarWindow : Window
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v2.bak"), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v3.bak"), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v4.bak"), StringComparison.OrdinalIgnoreCase)
         || Path.GetFullPath(path).StartsWith(Path.Combine(Path.GetDirectoryName(store.Path)!, "credentials") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.Combine(Path.GetDirectoryName(store.Path)!, ReminderStateStore.FileName), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.Combine(Path.GetDirectoryName(store.Path)!, CalendarViewSettingsStore.FileName), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.Combine(Path.GetDirectoryName(store.Path)!, CalendarViewSettingsStore.LegacyFileName), StringComparison.OrdinalIgnoreCase)
         || Path.GetFileName(path).StartsWith("accounts.sqlite", StringComparison.OrdinalIgnoreCase) && string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), Path.GetDirectoryName(store.Path), StringComparison.OrdinalIgnoreCase);
     private void Restore()
     {

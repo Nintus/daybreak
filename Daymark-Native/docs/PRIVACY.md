@@ -1,6 +1,6 @@
 # Privacy policy — native Windows preview
 
-This policy describes the Daymark v0.12 Windows preview, including optional read-only Google and Microsoft connections, local app migration and reminders.
+This policy describes the Daymark v0.13 Windows preview, including optional read-only Google and Microsoft connections, local app migration, reminders and tasks.
 
 ## Calendar data
 
@@ -9,6 +9,8 @@ The current client stores event titles, dates/times, timezones/UTC instants for 
 The native client implements no analytics, advertising, automatic crash uploads or automatic updater. Local calendar use does not require network access. Connecting an account opens your system browser for Google or Microsoft authorization. Manual refresh sends authenticated calendar-list and event queries to that provider. Authentication libraries also contact provider token endpoints when obtaining or refreshing credentials. Daymark does not send calendar data to a Daymark server.
 
 Quick Add parses the phrase on the device. Event reminder offsets are part of the local calendar. `reminder-state.json` stores event identifiers and reminder timestamps for snoozes and dismissals beside that calendar. The reminder window displays event titles on the current Windows desktop. Enable **Keep running after closing** to keep the app and its reminders active in the Windows notification area.
+
+Task titles, due dates, notes, completion state, and time-block links are part of the local calendar and native backups. Named sets and visibility preferences live in `calendar-sets.json` beside the calendar. A linked time block is a calendar event. Its event fields can be included in an `.ics` export.
 
 ## Connected accounts
 

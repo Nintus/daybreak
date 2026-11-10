@@ -43,9 +43,35 @@ public static class CalendarChanges
         return SaveEvent(document, occurrence with { IsCancelled = true });
     }
 
+    public static CalendarDocument Move(CalendarDocument document, CalendarEvent displayed, DateOnly date, TimeOnly time,
+        TimeZoneInfo displayZone, RepeatedTimeChoice? choice = null)
+    {
+        if (date.Year is < 2 or > 9998) throw new InvalidDataException("Choose a date between years 2 and 9998.");
+        var source = SourceOccurrence(document, displayed);
+        if (source.Recurrence is not null || source.IsCancelled)
+            throw new InvalidDataException("Choose a visible occurrence to move.");
+
+        var start = date.ToDateTime(source.AllDay ? TimeOnly.MinValue : time);
+        CalendarEvent moved;
+        if (source.TimeZoneId is { } zoneId)
+        {
+            var instant = CalendarTime.Resolve(start, displayZone, choice);
+            var duration = source.EndUtc!.Value - source.StartUtc!.Value;
+            moved = CalendarTime.InZone(source with { StartUtc = instant, EndUtc = instant.Add(duration) }, CalendarTime.FindZone(zoneId))
+                with { TimeZoneId = zoneId };
+        }
+        else
+        {
+            moved = source with { Start = start, End = start.Add(source.End - source.Start) };
+        }
+        return ScheduleChanged(source, moved) ? SaveEvent(document, moved) : document;
+    }
+
     public static CalendarDocument DeleteEventOrSeries(CalendarDocument document, Guid id)
     {
         var next = document.WithEvents(document.Events.Where(e => e.Id != id && e.SeriesId != id));
+        if (document.TaskList.Any(task => task.ScheduledEventId == id))
+            next = next with { Tasks = document.TaskList.Select(task => task.ScheduledEventId == id ? task with { ScheduledEventId = null } : task).ToList() };
         next.Validate(); return next;
     }
 }

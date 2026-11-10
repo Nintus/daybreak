@@ -1,6 +1,6 @@
 namespace Daymark.Core;
 
-public enum CalendarViewMode { Month, Week, Day }
+public enum CalendarViewMode { Month, Week, Day, Agenda }
 
 public static class CalendarNavigation
 {
@@ -14,6 +14,7 @@ public static class CalendarNavigation
             {
                 CalendarViewMode.Month => selected.AddMonths(direction),
                 CalendarViewMode.Week => selected.AddDays(7 * direction),
+                CalendarViewMode.Agenda => selected.AddDays(CalendarAgenda.Days * direction),
                 _ => selected.AddDays(direction)
             };
             // Month grids require surrounding weeks, even when switching from Day.

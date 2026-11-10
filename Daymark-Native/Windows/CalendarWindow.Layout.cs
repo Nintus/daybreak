@@ -9,6 +9,7 @@ namespace Daymark.Windows;
 public sealed partial class CalendarWindow
 {
     private readonly TextBlock agendaCount = new() { Foreground = NativeTheme.Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly Dictionary<CalendarViewMode, RadioButton> viewButtons = [];
     private readonly StackPanel emptyAgenda = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock emptyTitle = new() { FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = NativeTheme.Ink, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 14, 0, 6) };
     private readonly TextBlock emptyDescription = new() { FontSize = 12, Foreground = NativeTheme.Muted, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 220 };
@@ -37,6 +38,7 @@ public sealed partial class CalendarWindow
         var file = new MenuItem { Header = "_File" };
         file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N"));
         file.Items.Add(MenuAction("_Quick Add…", QuickAdd, "Ctrl+Shift+N"));
+        file.Items.Add(MenuAction("_Tasks…", OpenTasks, "Ctrl+Shift+T"));
         file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("Calendar _accounts…", ManageAccounts)); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("_Import from another app…", ImportFromApps));
@@ -44,7 +46,10 @@ public sealed partial class CalendarWindow
         file.Items.Add(MenuAction("Save _backup…", Export, "Ctrl+B")); file.Items.Add(MenuAction("_Restore backup…", Restore));
         file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", QuitDaymark)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
-        editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem); menu.Items.Add(editMenu);
+        editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem);
+        var move = MenuAction("_Move selected event…", MoveSelectedEvent, "Ctrl+M");
+        move.IsEnabled = false;
+        editMenu.Items.Add(new Separator()); editMenu.Items.Add(move); menu.Items.Add(editMenu);
         var appearance = new MenuItem { Header = "_Appearance" };
         foreach (var mode in Enum.GetValues<AppThemeMode>())
         {
@@ -88,6 +93,8 @@ public sealed partial class CalendarWindow
             (_, e) => { e.CanExecute = history.CanRedo; e.Handled = true; }));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Redo, Key.Z, ModifierKeys.Control | ModifierKeys.Shift));
         InputBindings.Add(new KeyBinding(new ActionCommand(QuickAdd), Key.N, ModifierKeys.Control | ModifierKeys.Shift));
+        InputBindings.Add(new KeyBinding(new ActionCommand(OpenTasks), Key.T, ModifierKeys.Control | ModifierKeys.Shift));
+        InputBindings.Add(new KeyBinding(new ActionCommand(MoveSelectedEvent), Key.M, ModifierKeys.Control));
 
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) }; DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -100,6 +107,7 @@ public sealed partial class CalendarWindow
             var segment = new RadioButton { Content = mode.ToString(), GroupName = "CalendarView", IsChecked = mode == viewMode,
                 Style = NativeTheme.Style("ViewSegment") };
             System.Windows.Automation.AutomationProperties.SetName(segment, $"{mode} view");
+            viewButtons.Add(mode, segment);
             segment.Checked += (_, _) => { viewMode = mode; Refresh(); }; views.Children.Add(segment);
         }
         search.Width = 195; search.MinWidth = 0; search.Tag = "Search events…"; search.FontSize = 13;
@@ -116,6 +124,8 @@ public sealed partial class CalendarWindow
 
         var calendarsRow = new DockPanel { Margin = new Thickness(0, -8, 0, 14) }; DockPanel.SetDock(calendarsRow, Dock.Top); root.Children.Add(calendarsRow);
         var manage = Button("Manage calendars…", (_, _) => ManageCalendars()); DockPanel.SetDock(manage, Dock.Right); calendarsRow.Children.Add(manage);
+        var sets = Button("Calendar sets…", (_, _) => ManageCalendarSets()); DockPanel.SetDock(sets, Dock.Right); calendarsRow.Children.Add(sets);
+        BuildCalendarSetPicker(); DockPanel.SetDock(calendarSetPicker, Dock.Right); calendarsRow.Children.Add(calendarSetPicker);
         calendarsRow.Children.Add(new ScrollViewer { Content = calendarFilters, MaxHeight = 66, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
 
         var footer = new DockPanel { Margin = new Thickness(2, 12, 2, 0) }; DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
@@ -163,6 +173,7 @@ public sealed partial class CalendarWindow
             var connected = agenda.SelectedItem is CalendarEvent item && IsProviderEvent(item);
             edit.Content = connected ? "_View event" : "_Edit event";
             edit.IsEnabled = agenda.SelectedItem is CalendarEvent; delete.IsEnabled = agenda.SelectedItem is CalendarEvent && !connected;
+            move.IsEnabled = delete.IsEnabled;
         };
         agenda.MouseDoubleClick += (_, _) => Edit();
         var template = new DataTemplate(typeof(CalendarEvent));

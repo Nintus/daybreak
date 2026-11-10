@@ -93,7 +93,9 @@ public static class IcalendarImporter
             events.AddRange(fresh); added += fresh.Count;
             foreach (var e in fresh.Where(e => e.SeriesId is null)) existingSeries.Add(e.Id);
         }
-        var next = new CalendarDocument(3, events, calendars); next.Validate(); return next;
+        var next = current with { Version = Math.Max(3, current.Version), Events = events, Calendars = calendars };
+        next.Validate();
+        return next;
     }
     private static List<CalendarEvent> Group(List<List<Property>> rows, CalendarDefinition calendar, string uid)
     {

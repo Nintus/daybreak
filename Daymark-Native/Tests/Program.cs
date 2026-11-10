@@ -16,7 +16,7 @@ try
     Test("save keeps previous-state backup", () => { store.Save(new(1, [changed])); Check(store.Load().Events.Single() == changed); Check(CalendarStore.Read(store.Path + ".bak").Events.Single() == item); });
     Test("invalid save leaves existing data intact", () => { Reject(() => store.Save(new(1, [changed with { End = changed.Start }]))); Check(store.Load().Events.Single() == changed); });
     Test("duplicate IDs are rejected", () => Reject(() => new CalendarDocument(1, [item, item]).Validate()));
-    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(5, [item]).Validate()));
+    Test("unknown backup version is rejected", () => Reject(() => new CalendarDocument(6, [item]).Validate()));
     Test("midnight boundary excludes previous day's ending event", () => { var midnight = item with { End = new DateTime(2026, 10, 9) }; Check(new CalendarDocument(1, [midnight]).On(new DateOnly(2026, 10, 9)).Count() == 0); });
     Test("multi-day all-day event uses exclusive end", () => { var days = item with { Start = new DateTime(2026, 10, 8), End = new DateTime(2026, 10, 10), AllDay = true }; days.Validate(); var doc = new CalendarDocument(1, [days]); Check(doc.On(new(2026, 10, 8)).Count() == 1 && doc.On(new(2026, 10, 9)).Count() == 1 && doc.On(new(2026, 10, 10)).Count() == 0); });
     Test("all-day event rejects non-midnight times", () => Reject(() => (item with { AllDay = true }).Validate()));
@@ -307,6 +307,7 @@ try
     MigrationTests.Run(Test, Check, Reject, folder);
     IcalendarExportTests.Run(Test, Check, Reject, folder);
     DailyWorkflowTests.Run(Test, Check, Reject, folder);
+    PlanningWorkflowTests.Run(Test, Check, Reject, folder);
     Check(!Directory.GetFiles(folder, "*.tmp").Any());
     Console.WriteLine($"{count} tests passed");
 }

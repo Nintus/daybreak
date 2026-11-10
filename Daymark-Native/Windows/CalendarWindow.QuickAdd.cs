@@ -41,9 +41,8 @@ public sealed partial class CalendarWindow
         {
             try
             {
-                var calendar = document.CalendarList.FirstOrDefault(item => !hiddenCalendars.Contains(item.Id)) ?? document.CalendarList[0];
                 var duration = new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes;
-                draft = QuickEventParser.Parse(input.Text, CalendarTime.Today(displayZone), duration, calendar.Id);
+                draft = QuickEventParser.Parse(input.Text, CalendarTime.Today(displayZone), duration, DefaultCalendarId());
                 dialog.DialogResult = true;
             }
             catch (InvalidDataException exception) { error.Text = exception.Message; }

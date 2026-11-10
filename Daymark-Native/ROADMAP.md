@@ -27,4 +27,6 @@ Version 0.10 adds a reviewed import flow for Fantastical/Thunderbird/classic Out
 
 Version 0.12 adds reviewed Quick Add phrases, local reminders with saved snoozes and dismissals, and optional tray operation. Daymark presents reminders in its own window while it runs. Automatic launch after a reboot and Windows Notification Center integration remain separate work.
 
+Version 0.13 adds a two-week Agenda, local tasks and linked time blocks, saved calendar sets, and direct rescheduling. The [near-term backlog](docs/NEAR_TERM_BACKLOG.md) gives priorities, dependencies, and completion checks for the next Windows releases.
+
 Follow the [provider integration plan](docs/PROVIDER_INTEGRATION.md) for live authorization QA and guarded writes. Do not delay account integration for every remaining paid-calendar feature or claim sync is complete from the planning tests.
