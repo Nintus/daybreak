@@ -10,4 +10,11 @@ public sealed partial class CalendarWindow
             next => Save(next, "Calendar import")) { Owner = this }.ShowDialog();
         Refresh();
     }
+
+    private void ExportCalendar()
+    {
+        var dialog = new CalendarExportDialog(document, selected, displayZone) { Owner = this };
+        if (dialog.ShowDialog() == true)
+            status.Text = $"Exported {dialog.ExportedCount:N0} {(dialog.ExportedCount == 1 ? "event" : "events")} to an iCalendar file";
+    }
 }

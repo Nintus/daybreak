@@ -38,6 +38,7 @@ public sealed partial class CalendarWindow
         file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N")); file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("Calendar _accounts…", ManageAccounts)); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("_Import from another app…", ImportFromApps));
+        file.Items.Add(MenuAction("_Export calendar (.ics)…", ExportCalendar));
         file.Items.Add(MenuAction("Save _backup…", Export, "Ctrl+B")); file.Items.Add(MenuAction("_Restore backup…", Restore));
         file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", Close)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
