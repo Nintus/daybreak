@@ -22,10 +22,10 @@ public static class Program
         using var instance = new Mutex(true, testCalendar ? "Local\\Daymark.Native.Calendar.Test" : "Local\\Daymark.Native.Calendar", out var firstInstance);
         if (!firstInstance)
         {
-            MessageBox.Show("Daymark is already running. Use its existing window.", "Daymark");
+            MessageBox.Show("Daymark is already running. Open it from its window or the notification area.", "Daymark");
             return;
         }
-        var app = new Application();
+        var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         var dataDirectory = testCalendar ? Path.Combine(AppContext.BaseDirectory, "TestCalendar")
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DaymarkNative");
         var store = new CalendarStore(Path.Combine(dataDirectory, "calendar.json"));
@@ -103,6 +103,7 @@ public sealed partial class CalendarWindow : Window
         };
         searchDelay.Tick += (_, _) => { searchDelay.Stop(); RefreshAgenda(); NativeMotion.Reveal(agenda); };
         Closed += (_, _) => searchDelay.Stop();
+        InitializeReminders(testCalendar);
         Loaded += async (_, _) => await LoadAccountsAsync();
         InputBindings.Add(new KeyBinding(new ActionCommand(() => { search.Focus(); search.SelectAll(); }), Key.F, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new ActionCommand(GoToDate), Key.G, ModifierKeys.Control));
@@ -218,7 +219,7 @@ public sealed partial class CalendarWindow : Window
     }
     private void NewEvent() => ShowEditor(null);
     private void Edit() { if (agenda.SelectedItem is CalendarEvent item) ShowEditor(item); }
-    private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null)
+    private void ShowEditor(CalendarEvent? original, TimeOnly? initialTime = null, CalendarEvent? preset = null)
     {
         if (original is not null && IsProviderEvent(original)) { ShowProviderEvent(original); return; }
         if (original?.SeriesId is { } series)
@@ -233,9 +234,10 @@ public sealed partial class CalendarWindow : Window
         while (true)
         {
             var editor = new EventEditor(selected, draft, initialTime, displayZone, document.CalendarList, document.CalendarList.FirstOrDefault(c => !hiddenCalendars.Contains(c.Id))?.Id,
-                new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes) { Owner = this };
+                new EventDefaults(Path.GetDirectoryName(store.Path)!).Minutes, preset) { Owner = this };
             if (editor.ShowDialog() != true || editor.Result is null) return;
             draft = editor.Result;
+            preset = null;
             var reset = original is not null && document.Events.Any(e => e.SeriesId == original.Id) && CalendarChanges.ScheduleChanged(original, draft);
             if (reset && MessageBox.Show(this, "Changing this series schedule resets its individual occurrence changes and skipped occurrences. Continue? You can undo the whole change.",
                 "Change series schedule", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) continue;
@@ -249,8 +251,11 @@ public sealed partial class CalendarWindow : Window
     }
     private bool Save(CalendarDocument next, string description)
     {
-        try { history.Commit(next, description, store.Save); document = history.Current; return true; }
+        try { history.Commit(next, description, store.Save); }
         catch (Exception error) { MessageBox.Show(this, $"Your change was not saved.\n\n{error.Message}", "Save failed", MessageBoxButton.OK, MessageBoxImage.Error); return false; }
+        document = history.Current;
+        reminders?.Update(document);
+        return true;
     }
     private void NavigateHistory(bool redo)
     {
@@ -259,7 +264,7 @@ public sealed partial class CalendarWindow : Window
         {
             var changed = redo ? history.Redo(store.Save) : history.Undo(store.Save);
             if (!changed) return;
-            document = history.Current; Refresh();
+            document = history.Current; reminders?.Update(document); Refresh();
             status.Text = $"{(redo ? "Redid" : "Undid")} {description} · Saved on this PC";
         }
         catch (Exception error)
@@ -297,7 +302,9 @@ public sealed partial class CalendarWindow : Window
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".bak"), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v1.bak"), StringComparison.OrdinalIgnoreCase)
         || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v2.bak"), StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.GetFullPath(store.Path + ".v3.bak"), StringComparison.OrdinalIgnoreCase)
         || Path.GetFullPath(path).StartsWith(Path.Combine(Path.GetDirectoryName(store.Path)!, "credentials") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path), Path.Combine(Path.GetDirectoryName(store.Path)!, ReminderStateStore.FileName), StringComparison.OrdinalIgnoreCase)
         || Path.GetFileName(path).StartsWith("accounts.sqlite", StringComparison.OrdinalIgnoreCase) && string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), Path.GetDirectoryName(store.Path), StringComparison.OrdinalIgnoreCase);
     private void Restore()
     {

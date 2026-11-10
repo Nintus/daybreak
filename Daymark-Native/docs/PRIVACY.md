@@ -1,12 +1,14 @@
 # Privacy policy — native Windows preview
 
-This policy describes `Daymark-Native` version 0.10, the C# / WPF client, including optional Google and Microsoft read-only connections and local app migration. It does not describe the older web/Electron prototype.
+This policy describes the Daymark v0.12 Windows preview, including optional read-only Google and Microsoft connections, local app migration and reminders.
 
 ## Calendar data
 
 The current client stores event titles, dates/times, timezones/UTC instants for anchored timed events, locations and notes locally in `%LOCALAPPDATA%\DaymarkNative\calendar.json`. The previous successful save is `calendar.json.bak`. Migration from version 1 also preserves `calendar.json.v1.bak`. The optional `--test-calendar` profile instead stores synthetic QA data in `TestCalendar` beside the executable. These files are not encrypted by Daymark; access depends on your Windows account and device protections.
 
 The native client implements no analytics, advertising, automatic crash uploads or automatic updater. Local calendar use does not require network access. Connecting an account opens your system browser for Google or Microsoft authorization. Manual refresh sends authenticated calendar-list and event queries to that provider. Authentication libraries also contact provider token endpoints when obtaining or refreshing credentials. Daymark does not send calendar data to a Daymark server.
+
+Quick Add parses the phrase on the device. Event reminder offsets are part of the local calendar. `reminder-state.json` stores event identifiers and reminder timestamps for snoozes and dismissals beside that calendar. The reminder window displays event titles on the current Windows desktop. Enable **Keep running after closing** to keep the app and its reminders active in the Windows notification area.
 
 ## Connected accounts
 
@@ -30,4 +32,4 @@ When reporting a problem, use synthetic events or redact calendar details and pe
 
 Downloading releases and obtaining .NET development dependencies involve GitHub or Microsoft's services, separately from running the offline calendar. The packaged .NET runtime and Windows remain subject to their own terms and settings. No signing-provider service is currently called by the app; any future build-signing integration operates on software artifacts, not users' calendars.
 
-The portable preview installs no background service or startup registration. To remove it, close Daymark and remove its extracted app folder. Personal calendar data remains in the location above; make a backup before removing that data separately. Test-calendar data lives inside its build folder and should be backed up before that folder is removed.
+The portable preview installs no background service or startup registration. To remove it, use **File → Exit** or **Quit Daymark** in the tray, then remove its extracted app folder. Personal calendar data remains in the location above; make a backup before removing that data separately. Test-calendar data lives inside its build folder and should be backed up before that folder is removed.

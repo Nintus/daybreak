@@ -18,12 +18,14 @@ public sealed class EventEditor : Window
     private readonly ComboBox zone = new() { ItemsSource = ZoneChoice.All, DisplayMemberPath = "Label", SelectedValuePath = "Id", IsTextSearchEnabled = true };
     private readonly ComboBox startOccurrence = OccurrencePicker();
     private readonly ComboBox endOccurrence = OccurrencePicker();
+    private readonly ComboBox reminder = new() { DisplayMemberPath = nameof(ReminderChoice.Label), SelectedValuePath = nameof(ReminderChoice.Minutes) };
     private readonly TextBox location = new() { MaxLength = 1000 };
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBlock error = new() { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap };
 
-    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null, int defaultDurationMinutes = 60)
+    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null, int defaultDurationMinutes = 60, CalendarEvent? preset = null)
     {
+        var seed = original ?? preset;
         NativeTheme.Attach(this);
         Title = original is null ? "New event" : "Edit event";
         Width = 560; Height = Math.Min(860, SystemParameters.WorkArea.Height - 32); MinWidth = 500;
@@ -60,7 +62,7 @@ public sealed class EventEditor : Window
         };
         calendars ??= [CalendarDefinition.Personal];
         var calendar = new ComboBox { ItemsSource = calendars, DisplayMemberPath = "Name", SelectedValuePath = "Id",
-            SelectedValue = original?.CalendarId ?? defaultCalendarId ?? calendars[0].Id, IsEnabled = original?.SeriesId is null };
+            SelectedValue = seed?.CalendarId ?? defaultCalendarId ?? calendars[0].Id, IsEnabled = original?.SeriesId is null };
         System.Windows.Automation.AutomationProperties.SetName(calendar, "Event calendar");
         Field("_Title", title); Field("_Calendar", calendar);
         DateAndTime("Start _date", startDate, "Start ti_me · 24-hour", startTime);
@@ -76,9 +78,15 @@ public sealed class EventEditor : Window
         var endOccurrenceLabel = Field("End occurrence — this hour happens twice", endOccurrence);
         panel.Children.Add(new TextBlock { Text = "Floating events keep the entered clock time in every display zone.",
             FontSize = 12, Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
-        var recurrence = new RecurrenceFields(original?.Recurrence, original?.Start ?? selected.ToDateTime(TimeOnly.MinValue), original?.SeriesId is not null);
+        var recurrence = new RecurrenceFields(seed?.Recurrence, seed?.Start ?? selected.ToDateTime(TimeOnly.MinValue), original?.SeriesId is not null);
         panel.Children.Add(recurrence);
         startDate.SelectedDateChanged += (_, _) => { if (startDate.SelectedDate is { } repeatStart) recurrence.UpdateStart(repeatStart); };
+        reminder.ItemsSource = ReminderChoice.Options(seed?.ReminderMinutes);
+        if (seed?.ReminderMinutes is { } lead) reminder.SelectedValue = lead;
+        else reminder.SelectedIndex = 0;
+        Field("Re_minder", reminder);
+        var reminderHelp = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = NativeTheme.Muted, FontSize = 12, Margin = new Thickness(0, 5, 0, 0) };
+        panel.Children.Add(reminderHelp);
         Field("_Location", location); Field("_Notes", notes); panel.Children.Add(error);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(6, 0, 0, 0) };
@@ -87,12 +95,12 @@ public sealed class EventEditor : Window
         actions.Children.Add(cancel); actions.Children.Add(save); actions.Margin = new Thickness(22, 10, 22, 18); DockPanel.SetDock(actions, Dock.Bottom); root.Children.Insert(0, actions);
         defaultZone ??= TimeZoneInfo.Local;
         var sourceZone = original?.TimeZoneId is string id ? CalendarTime.FindZone(id) : defaultZone;
-        var sourceEvent = original is null ? null : original.Recurrence is not null ? original : CalendarTime.InZone(original, sourceZone);
+        var sourceEvent = original is null ? preset : original.Recurrence is not null ? original : CalendarTime.InZone(original, sourceZone);
         var start = sourceEvent?.Start ?? selected.ToDateTime(initialTime ?? new TimeOnly(9, 0));
         var end = sourceEvent?.End ?? start.AddMinutes(defaultDurationMinutes is >= 1 and <= 1440 ? defaultDurationMinutes : 60);
-        title.Text = original?.Title ?? ""; location.Text = original?.Location ?? ""; notes.Text = original?.Notes ?? "";
+        title.Text = seed?.Title ?? ""; location.Text = seed?.Location ?? ""; notes.Text = seed?.Notes ?? "";
         startDate.SelectedDate = start.Date; endDate.SelectedDate = end.Date;
-        startTime.Text = start.ToString("HH:mm"); endTime.Text = end.ToString("HH:mm"); allDay.IsChecked = original?.AllDay ?? false;
+        startTime.Text = start.ToString("HH:mm"); endTime.Text = end.ToString("HH:mm"); allDay.IsChecked = seed?.AllDay ?? false;
         zone.SelectedIndex = original is not null && !original.AllDay && original.TimeZoneId is null ? 0
             : ZoneChoice.All.ToList().FindIndex(option => option.Id == CalendarTime.ZoneId(sourceZone));
         if (zone.SelectedIndex < 0)
@@ -112,6 +120,7 @@ public sealed class EventEditor : Window
         void UpdateOccurrences()
         {
             zone.IsEnabled = allDay.IsChecked != true;
+            reminderHelp.Text = allDay.IsChecked == true ? "All-day reminders count back from 9:00 AM in the device time zone." : "Reminders appear while Daymark is running.";
             allDayHelp.Visibility = allDay.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             startOccurrence.Visibility = startOccurrenceLabel.Visibility = Repeated(startDate, startTime) ? Visibility.Visible : Visibility.Collapsed;
             endOccurrence.Visibility = endOccurrenceLabel.Visibility = Repeated(endDate, endTime) ? Visibility.Visible : Visibility.Collapsed;
@@ -140,11 +149,12 @@ public sealed class EventEditor : Window
                     fromClock = CalendarTime.KeepSubminutePrecision(fromClock, sourceEvent?.Start);
                     toClock = CalendarTime.KeepSubminutePrecision(toClock, sourceEvent?.End);
                 }
-                var item = new CalendarEvent(original?.Id ?? Guid.NewGuid(), title.Text.Trim(), fromClock,
+                var item = new CalendarEvent(seed?.Id ?? Guid.NewGuid(), title.Text.Trim(), fromClock,
                     toClock, allDay.IsChecked == true, location.Text.Trim(), notes.Text,
                     CalendarId: (string?)calendar.SelectedValue ?? calendars[0].Id,
                     Recurrence: original?.SeriesId is null ? recurrence.Read(fromClock) : null,
-                    SeriesId: original?.SeriesId, OriginalStart: original?.OriginalStart);
+                    SeriesId: original?.SeriesId, OriginalStart: original?.OriginalStart,
+                    ReminderMinutes: (reminder.SelectedItem as ReminderChoice)?.Minutes);
                 if (!item.AllDay && zone.SelectedItem is not ZoneChoice) throw new InvalidOperationException("Choose an event time zone or Floating.");
                 if (!item.AllDay && zone.SelectedItem is ZoneChoice { Id: not null } choice)
                     item = CalendarTime.Anchor(item, CalendarTime.FindZone(choice.Id),
@@ -156,4 +166,20 @@ public sealed class EventEditor : Window
         };
     }
     private static ComboBox OccurrencePicker() => new() { ItemsSource = new[] { "Choose an occurrence…", "First occurrence (earlier instant)", "Second occurrence (later instant)" }, SelectedIndex = 0 };
+
+    private sealed record ReminderChoice(string Label, int? Minutes)
+    {
+        public static IReadOnlyList<ReminderChoice> Options(int? custom)
+        {
+            var options = new List<ReminderChoice>
+            {
+                new("None", null), new("At start", 0), new("5 minutes before", 5), new("10 minutes before", 10),
+                new("15 minutes before", 15), new("30 minutes before", 30), new("1 hour before", 60),
+                new("2 hours before", 120), new("1 day before", 1440), new("1 week before", 10080)
+            };
+            if (custom is { } value && options.All(option => option.Minutes != value))
+                options.Add(new($"{value:N0} minutes before", value));
+            return options;
+        }
+    }
 }

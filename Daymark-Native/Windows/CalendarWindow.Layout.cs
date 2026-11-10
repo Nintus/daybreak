@@ -35,12 +35,14 @@ public sealed partial class CalendarWindow
 
         var menu = new Menu { Background = Brushes.Transparent, Foreground = NativeTheme.Muted, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         var file = new MenuItem { Header = "_File" };
-        file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N")); file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
+        file.Items.Add(MenuAction("_New event", NewEvent, "Ctrl+N"));
+        file.Items.Add(MenuAction("_Quick Add…", QuickAdd, "Ctrl+Shift+N"));
+        file.Items.Add(MenuAction("_Go to date…", GoToDate, "Ctrl+G")); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("Calendar _accounts…", ManageAccounts)); file.Items.Add(new Separator());
         file.Items.Add(MenuAction("_Import from another app…", ImportFromApps));
         file.Items.Add(MenuAction("_Export calendar (.ics)…", ExportCalendar));
         file.Items.Add(MenuAction("Save _backup…", Export, "Ctrl+B")); file.Items.Add(MenuAction("_Restore backup…", Restore));
-        file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", Close)); menu.Items.Add(file);
+        file.Items.Add(new Separator()); file.Items.Add(MenuAction("E_xit", QuitDaymark)); menu.Items.Add(file);
         var editMenu = new MenuItem { Header = "_Edit" }; undoItem.CommandTarget = redoItem.CommandTarget = this;
         editMenu.Items.Add(undoItem); editMenu.Items.Add(redoItem); menu.Items.Add(editMenu);
         var appearance = new MenuItem { Header = "_Appearance" };
@@ -67,17 +69,25 @@ public sealed partial class CalendarWindow
         appearance.Items.Add(reducedMotion);
         appearance.SubmenuOpened += (_, _) => { foreach (var entry in appearance.Items.OfType<MenuItem>().Where(i => i.Tag is AppThemeMode)) entry.IsChecked = (AppThemeMode)entry.Tag == NativeTheme.Mode; };
         menu.Items.Add(appearance);
+        var reminderMenu = new MenuItem { Header = "_Reminders" };
+        reminderMenu.Items.Add(MenuAction("_Show reminders…", () => reminders?.Open()));
+        var trayOption = new MenuItem { Header = "_Keep running after closing", IsCheckable = true };
+        trayOption.Click += (_, _) => { ToggleTray(trayOption.IsChecked); trayOption.IsChecked = tray is not null; };
+        reminderMenu.SubmenuOpened += (_, _) => trayOption.IsChecked = tray is not null;
+        reminderMenu.Items.Add(trayOption);
+        menu.Items.Add(reminderMenu);
         var help = new MenuItem { Header = "_Help" };
         help.Items.Add(MenuAction("Time _zones", () => MessageBox.Show(this,
             "The display time zone changes how timed events appear. Each anchored event keeps its own source zone and UTC instants.\n\nFloating events keep their clock times in every zone. Choose a time zone in an event to anchor it. All-day events keep their dates.", "Time zones", MessageBoxButton.OK, MessageBoxImage.Information)));
         help.Items.Add(MenuAction("_About Daymark", () => MessageBox.Show(this,
-            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nGoogle/Microsoft read-only sync requires your OAuth app setup. Two-way editing and reminders are not available yet.",
+            $"Daymark {BuildInfo.Version}\nNative Windows preview\n\n{(testCalendar ? "Test calendar" : "Personal calendar")}\nData: {store.Path}\n\nReminders run for local events. Google/Microsoft read-only sync requires your OAuth app setup.",
             "About Daymark", MessageBoxButton.OK, MessageBoxImage.Information))); menu.Items.Add(help); preferences.Children.Add(menu);
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, _) => NavigateHistory(false),
             (_, e) => { e.CanExecute = history.CanUndo; e.Handled = true; }));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, _) => NavigateHistory(true),
             (_, e) => { e.CanExecute = history.CanRedo; e.Handled = true; }));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Redo, Key.Z, ModifierKeys.Control | ModifierKeys.Shift));
+        InputBindings.Add(new KeyBinding(new ActionCommand(QuickAdd), Key.N, ModifierKeys.Control | ModifierKeys.Shift));
 
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) }; DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
