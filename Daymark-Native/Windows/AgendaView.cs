@@ -8,7 +8,10 @@ namespace Daymark.Windows;
 internal sealed class AgendaView : UserControl
 {
     private const int MaximumRows = 2500;
-    private sealed record Row(string Title, string Detail, DateOnly Date, CalendarEvent? Event = null, CalendarTask? Task = null);
+    private sealed record Row(string Title, string Detail, DateOnly Date, CalendarEvent? Event = null, CalendarTask? Task = null)
+    {
+        public bool IsHeading => Event is null && Task is null;
+    }
 
     public AgendaView(IReadOnlyList<AgendaDay> days, Action<DateOnly> goToDay, Action<CalendarEvent> openEvent,
         Action<CalendarTask> openTask, Action<CalendarTask> completeTask)
@@ -50,7 +53,7 @@ internal sealed class AgendaView : UserControl
             var limit = new TextBlock { Text = $"Showing the first {MaximumRows:N0} agenda rows. Use Day view to see a busier date.", Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap };
             DockPanel.SetDock(limit, Dock.Top); root.Children.Add(limit);
         }
-        var list = PlanningList.Create("Two-week agenda");
+        var list = PlanningList.Create("Two-week agenda", grouped: true);
         list.ItemsSource = rows;
         var buttons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var open = new Button { Content = "_Open selected", IsEnabled = false, Margin = new Thickness(0, 0, 8, 0) };

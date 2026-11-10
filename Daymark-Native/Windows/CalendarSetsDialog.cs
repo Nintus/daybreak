@@ -36,6 +36,7 @@ internal sealed class CalendarSetsDialog : Window
         panel.Children.Add(new TextBlock { Text = "Save groups of visible calendars and choose where new events go in each set.", Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 14) });
         list.ItemsSource = sets;
         list.Background = NativeTheme.Subtle;
+        list.Foreground = NativeTheme.Ink;
         list.ItemContainerStyle = NativeTheme.Style("AgendaItem");
         System.Windows.Automation.AutomationProperties.SetName(list, "Saved calendar sets");
         panel.Children.Add(list);
@@ -117,7 +118,7 @@ internal sealed class CalendarSetEditor : Window
         var membership = new ListBox
         {
             ItemsSource = calendars, DisplayMemberPath = nameof(CalendarDefinition.Name), SelectionMode = SelectionMode.Multiple, Height = 195,
-            Background = NativeTheme.Subtle, ItemContainerStyle = NativeTheme.Style("AgendaItem")
+            Background = NativeTheme.Subtle, Foreground = NativeTheme.Ink, ItemContainerStyle = NativeTheme.Style("AgendaItem")
         };
         var selectedIds = seed.VisibleCalendarIds.ToHashSet(StringComparer.Ordinal);
         foreach (var calendar in calendars.Where(item => selectedIds.Contains(item.Id))) membership.SelectedItems.Add(calendar);

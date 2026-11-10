@@ -168,7 +168,7 @@ internal static class Program
             Check(closed && typeof(CalendarWindow).GetField("tray", flags)!.GetValue(trayWindow) is null, "explicit quit closes a hidden calendar and releases its tray icon");
             CheckPlanningWorkflow(folder, flags);
             window.Close(); app.Shutdown();
-            Console.WriteLine("38 Windows checks passed");
+            Console.WriteLine("39 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
@@ -205,12 +205,18 @@ internal static class Program
         var views = (Dictionary<CalendarViewMode, RadioButton>)type.GetField("viewButtons", flags)!.GetValue(planner)!;
         var content = (ContentControl)type.GetField("calendarContent", flags)!.GetValue(planner)!;
         views[CalendarViewMode.Agenda].IsChecked = true;
-        int AgendaRows() => FindElements<ListBox>((DependencyObject)content.Content).Single().Items.Count;
-        Check(AgendaRows() == 2 && (string?)type.GetMethod("DefaultCalendarId", flags)!.Invoke(planner, null) == work.Id,
+        ListBox AgendaList() => FindElements<ListBox>((DependencyObject)content.Content).Single();
+        Check(AgendaList().Items.Count == 2 && (string?)type.GetMethod("DefaultCalendarId", flags)!.Invoke(planner, null) == work.Id,
             "an active calendar set limits Agenda rows and routes new events to its default calendar");
+        planner.UpdateLayout();
+        var eventRow = (ListBoxItem)AgendaList().ItemContainerGenerator.ContainerFromIndex(1);
+        var rowTitle = FindVisualElements<TextBlock>(eventRow).Single(label => label.Text == workEvent.Title);
+        Check((SystemParameters.HighContrast || ReferenceEquals(rowTitle.Foreground, NativeTheme.Ink)) &&
+            System.Windows.Automation.AutomationProperties.GetName(eventRow).StartsWith("Work session. ", StringComparison.Ordinal),
+            "Agenda titles use the readable theme ink and screen readers receive concise row names");
         var selector = (ComboBox)type.GetField("calendarSetPicker", flags)!.GetValue(planner)!;
         selector.SelectedIndex = 0;
-        Check(AgendaRows() == 4 && settings.Load().ActiveSetId is null, "switching to all calendars restores events and due tasks in Agenda");
+        Check(AgendaList().Items.Count == 4 && settings.Load().ActiveSetId is null, "switching to all calendars restores events and due tasks in Agenda");
 
         type.GetMethod("MoveEvent", flags)!.Invoke(planner, [workEvent, day.AddDays(1), new TimeOnly(14, 15)]);
         Check(store.Load().Events.Single(item => item.Id == workEvent.Id).Start == day.AddDays(1).ToDateTime(new TimeOnly(14, 15)) &&
@@ -235,6 +241,13 @@ internal static class Program
         FindButtons(tasks).Single(button => Equals(button.Content, "_Complete")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(store.Load().TaskList.Single().IsCompleted && store.Load().Events.Count == 3, "completing a task keeps its scheduled block on the calendar");
         tasks.Close();
+    }
+
+    private static IEnumerable<T> FindVisualElements<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T element) yield return element;
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
+            foreach (var child in FindVisualElements<T>(System.Windows.Media.VisualTreeHelper.GetChild(root, index))) yield return child;
     }
     private static void PumpUntil(Func<bool> done)
     {
