@@ -1,3 +1,5 @@
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Daymark.Core;
@@ -7,6 +9,44 @@ namespace Daymark.Windows;
 public sealed partial class CalendarWindow
 {
     private string? filterSignature;
+    private sealed record SetChoice(string Name, Guid? Id = null, bool All = false);
+    private readonly ComboBox calendarSetPicker = new() { DisplayMemberPath = nameof(SetChoice.Name), Width = 152 };
+    private CalendarViewSettings visibility = CalendarViewSettings.Empty;
+    private CalendarViewSettings? renderedSets;
+    private bool changingSetPicker;
+    private CalendarViewSettingsStore ViewSettingsStore => new(Path.GetDirectoryName(store.Path)!);
+    private string DefaultCalendarId() => visibility.DefaultCalendar(document.CalendarList, hiddenCalendars);
+
+    private void BuildCalendarSetPicker()
+    {
+        calendarSetPicker.Margin = new Thickness(6, 0, 6, 0);
+        calendarSetPicker.VerticalAlignment = VerticalAlignment.Center;
+        System.Windows.Automation.AutomationProperties.SetName(calendarSetPicker, "Calendar set");
+        calendarSetPicker.SelectionChanged += (_, _) =>
+        {
+            if (changingSetPicker || calendarSetPicker.SelectedItem is not SetChoice choice) return;
+            SaveViewPreferences(visibility with { ActiveSetId = choice.Id, CustomHidden = choice.All ? [] : visibility.CustomHidden });
+        };
+    }
+
+    private void ApplyCalendarVisibility()
+    {
+        hiddenCalendars.Clear();
+        hiddenCalendars.UnionWith(visibility.HiddenCalendars(ViewDocument.CalendarList));
+        if (ReferenceEquals(renderedSets, visibility)) return;
+        changingSetPicker = true;
+        try
+        {
+            var choices = new List<SetChoice> { new("All calendars", All: true), new("Custom visibility") };
+            choices.AddRange(visibility.Sets.Select(set => new SetChoice(set.Name, set.Id)));
+            calendarSetPicker.ItemsSource = choices;
+            calendarSetPicker.SelectedItem = visibility.ActiveSetId is { } id ? choices.Single(choice => choice.Id == id)
+                : visibility.CustomHidden.Length == 0 ? choices[0] : choices[1];
+            renderedSets = visibility;
+        }
+        finally { changingSetPicker = false; }
+    }
+
     private void RefreshCalendarFilters()
     {
         var signature = string.Join("\n", ViewDocument.CalendarList.Select(c => $"{c.Id}|{c.Name}|{c.Color}|{hiddenCalendars.Contains(c.Id)}"));
@@ -22,33 +62,39 @@ public sealed partial class CalendarWindow
             System.Windows.Automation.AutomationProperties.SetName(toggle, $"Show {calendar.Name}");
             void Filter(bool visible)
             {
-                if (visible) hiddenCalendars.Remove(calendar.Id); else hiddenCalendars.Add(calendar.Id);
-                SaveViewPreferences(); Refresh();
+                var next = new HashSet<string>(hiddenCalendars, StringComparer.Ordinal);
+                if (visible) next.Remove(calendar.Id); else next.Add(calendar.Id);
+                SaveViewPreferences(visibility with { ActiveSetId = null, CustomHidden = next.Order(StringComparer.Ordinal).ToArray() });
             }
             toggle.Checked += (_, _) => Filter(true); toggle.Unchecked += (_, _) => Filter(false); calendarFilters.Children.Add(toggle);
         }
     }
-    private string ViewPreferencesPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.Path)!, "hidden-calendars.json");
     private void LoadViewPreferences()
     {
-        try
-        {
-            if (System.IO.File.Exists(ViewPreferencesPath) && new System.IO.FileInfo(ViewPreferencesPath).Length < 50000)
-                hiddenCalendars.UnionWith(System.Text.Json.JsonSerializer.Deserialize<string[]>(System.IO.File.ReadAllText(ViewPreferencesPath)) ?? []);
-        }
-        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+        try { visibility = ViewSettingsStore.Load(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException) { }
     }
-    private void SaveViewPreferences()
+
+    private void SaveViewPreferences(CalendarViewSettings next)
     {
         try
         {
-            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ViewPreferencesPath)!);
-            var temporary = ViewPreferencesPath + ".tmp";
-            System.IO.File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(hiddenCalendars.Where(id => ViewDocument.CalendarList.Any(c => c.Id == id)).ToArray()));
-            System.IO.File.Move(temporary, ViewPreferencesPath, true);
+            next.Validate();
+            visibility = next;
+            ViewSettingsStore.Save(next);
         }
-        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
-        { MessageBox.Show(this, $"The view filter works for this session, but could not be saved.\n\n{error.Message}", "Calendar visibility"); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            renderedSets = null;
+            MessageBox.Show(this, $"Calendar visibility preferences could not be saved.\n\n{error.Message}", "Calendar sets");
+        }
+        Refresh();
+    }
+
+    private void ManageCalendarSets()
+    {
+        var dialog = new CalendarSetsDialog(visibility, ViewDocument.CalendarList, document.CalendarList, hiddenCalendars) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.Result is { } result) SaveViewPreferences(result);
     }
     private void ManageCalendars()
     {

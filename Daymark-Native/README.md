@@ -2,7 +2,7 @@
 
 A real Windows desktop client built with C# and WPF on .NET 10. The UI uses Windows desktop controls; there is no Electron, Chromium, WebView, local web server, or Node.js process.
 
-This native preview supports named/color-coded calendars, month/week/day views, selected-day agendas, timed/all-day events, recurring series and exceptions, search, native JSON backup/restore, undo/redo and light/dark/system themes. It works without network access. It is not yet a replacement for every paid-calendar feature.
+This native preview supports Month, Week, Day and Agenda views, calendar sets, tasks and time blocks, timed and all-day events, recurrence and exceptions, Quick Add, reminders, `.ics` transfer, and native backup and undo. These daily planning features work offline.
 
 Choose **Week** in the view switcher for a Monday–Sunday timeline. Previous/Next move one week; Today returns to the current date. Select a day heading to use it for New event. Double-click an empty time slot to start an event at that half-hour; click an event to edit it. All-day events appear above the timeline, overnight appointments appear on each day they overlap, and simultaneous events share the day's width. Short appointments have a minimum display height; their saved times are unchanged. Scroll vertically for the full 24 hours. Narrow windows also allow horizontal scrolling.
 
@@ -18,7 +18,9 @@ Choose **Appearance → System setting**, **Light**, or **Dark**. Changes apply 
 
 ## Calendars, repeating events and search
 
-Use **Manage calendars** to add, rename and recolor local calendars. Save applies the current name/color edit too. Only empty calendars can be removed; removing a calendar never silently deletes its events. Choose a calendar in the event editor. Moving an entire series moves its exception records too. Visibility checkboxes filter all views/search and are saved separately in `hidden-calendars.json`; they do not change event data or consume undo history. Names and colors are included in backups.
+Use **Manage calendars** to add, rename and recolor local calendars. Save applies the current name and color edit. Choose a calendar in the event editor. Moving an entire series to another calendar moves its exceptions too. Calendar names and colors are included in native backups.
+
+Open **Calendar sets** to save groups such as Work or Personal. Each set chooses visible calendars, an optional default local calendar for new events, and whether Agenda shows due tasks. The selector switches between sets. Changing a checkbox switches to custom visibility. Set preferences live in `calendar-sets.json` alongside the native calendar. The app loads older visibility preferences from `hidden-calendars.json` when it first opens a profile.
 
 The editor supports daily, weekly (including multiple weekdays), monthly date/ordinal-weekday/last-weekday, and yearly date repeats, with an interval, inclusive end date or up to 10,000 occurrences. Opening a repeating event asks whether to edit this occurrence or the entire series. A moved occurrence keeps its original identity; deleting one stores a skipped-occurrence exception. A series schedule change with exceptions requires explicit confirmation to reset those exceptions. Simple title/location/calendar changes preserve them. “This and following” splitting and a dedicated skipped-occurrence restoration screen are not implemented; session Undo can restore a skip.
 
@@ -65,11 +67,19 @@ Use the event editor to set a reminder for a local event or series. Timed remind
 
 Native backups carry event reminder settings. Calendars with reminders use version 4 and require Daymark v0.12 or later. The first upgrade from version 3 preserves the previous file in `calendar.json.v3.bak`. Snoozes and dismissals live separately in `reminder-state.json`. Set reminders in Daymark after importing an `.ics` file.
 
+## Plan with Agenda and Tasks
+
+Select **Agenda** to see two weeks of events and open task deadlines from the selected date. Open a date header to jump to Day view. Open a row to edit its event or task. Completed tasks are available in **File → Tasks**. Use **Ctrl+Shift+T** to open Tasks directly.
+
+Tasks can have a due date, notes and an importance flag. **Schedule time** opens the event editor to reserve a linked block on a local calendar. Completing or deleting a task keeps its calendar commitment. Deleting the linked event frees the task to be scheduled again. The native backup and Undo include tasks and links. Calendars containing tasks use version 5 and require Daymark v0.13 or later. The first upgrade preserves the previous file with its version in the backup name.
+
+Drag a timed local event in Day or Week to move it in 15-minute increments. For keyboard rescheduling, select an event in the Schedule list and press **Ctrl+M**. Moving a repeating appointment moves the selected occurrence. Anchored events keep their source time zone and elapsed duration. You can undo the move.
+
 Use **File → Import from another app…** to review discovered Fantastical, classic Outlook and Thunderbird account identities, compatible settings, and local .ics files. Imported Google/Microsoft profiles appear in **Calendar accounts** with sign-in hints; iCloud/CalDAV profiles are listed pending provider support. Add exported .ics files manually when a source uses a private database. See [migration support and limits](docs/IMPORT.md).
 
 Use **File → Export calendar (.ics)…** to save one local calendar for an inclusive date range of up to 1,096 days. Daymark uses its display time zone to select overlapping events and includes each event's full duration. Repeating events become individual occurrences, including moves and edits. Skipped occurrences stay out of the file. Use **Save backup** to preserve complete repeating series and all local calendars.
 
-Tasks, two-way provider synchronization, and migration from web/Electron data are **not implemented**. Its backup format and data location are separate from those of the existing clients. Do not use a web backup as a native backup or assume existing events transfer automatically.
+Tasks are stored locally. Two-way provider synchronization and web/Electron data migration are future work. The [near-term backlog](docs/NEAR_TERM_BACKLOG.md) tracks the Windows release, connected calendar work, and planning improvements.
 
 All-day event end dates are exclusive: to include Friday and Saturday, set the start to Friday and the end to Sunday. Native date pickers, keyboard tab navigation, `Ctrl+N` for a new event, `Ctrl+B` for backup, `Ctrl+F` for search, `Ctrl+G` for Go to Date, and Escape to cancel the editor are available.
 

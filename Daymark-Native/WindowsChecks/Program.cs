@@ -166,17 +166,89 @@ internal static class Program
             Check(reminderState.Values.Single() > DateTime.UtcNow && !reminderWindow.IsVisible, "snoozing a reminder persists its new deadline and closes the alert");
             typeof(CalendarWindow).GetMethod("QuitDaymark", flags)!.Invoke(trayWindow, null);
             Check(closed && typeof(CalendarWindow).GetField("tray", flags)!.GetValue(trayWindow) is null, "explicit quit closes a hidden calendar and releases its tray icon");
+            CheckPlanningWorkflow(folder, flags);
             window.Close(); app.Shutdown();
-            Console.WriteLine("33 Windows checks passed");
+            Console.WriteLine("39 Windows checks passed");
         }
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(folder, true); }
     }
     private static void Check(bool result, string name) { if (!result) throw new Exception(name); Console.WriteLine("PASS " + name); }
-    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    private static IEnumerable<Button> FindButtons(DependencyObject root) => FindElements<Button>(root);
+
+    private static IEnumerable<T> FindElements<T>(DependencyObject root) where T : DependencyObject
     {
-        if (root is Button button) yield return button;
+        if (root is T element) yield return element;
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
-            foreach (var descendant in FindButtons(child)) yield return descendant;
+            foreach (var descendant in FindElements<T>(child)) yield return descendant;
+    }
+
+    private static void CheckPlanningWorkflow(string folder, BindingFlags flags)
+    {
+        var planningFolder = Path.Combine(folder, "planner");
+        Directory.CreateDirectory(planningFolder);
+        var day = CalendarTime.Today(TimeZoneInfo.Local);
+        var start = day.ToDateTime(new TimeOnly(9, 0));
+        var work = new CalendarDefinition("work", "Work");
+        var workEvent = new CalendarEvent(Guid.NewGuid(), "Work session", start, start.AddHours(1), CalendarId: work.Id);
+        var personalEvent = workEvent with { Id = Guid.NewGuid(), Title = "Personal session", CalendarId = "personal" };
+        var task = new CalendarTask(Guid.NewGuid(), "Prepare notes", day);
+        var snapshot = new CalendarDocument(3, [workEvent, personalEvent], [CalendarDefinition.Personal, work], [task]);
+        var settings = new CalendarViewSettingsStore(planningFolder);
+        var focus = new CalendarSet(Guid.NewGuid(), "Work focus", [work.Id], work.Id, ShowTasks: false);
+        settings.Save(new([focus], [], focus.Id));
+        var store = new CalendarStore(Path.Combine(planningFolder, "calendar.json"));
+        store.Save(snapshot);
+        var planner = new CalendarWindow(store, store.Load(), true);
+        planner.Show();
+        PumpUntil(() => planner.IsLoaded);
+        var type = typeof(CalendarWindow);
+        var views = (Dictionary<CalendarViewMode, RadioButton>)type.GetField("viewButtons", flags)!.GetValue(planner)!;
+        var content = (ContentControl)type.GetField("calendarContent", flags)!.GetValue(planner)!;
+        views[CalendarViewMode.Agenda].IsChecked = true;
+        ListBox AgendaList() => FindElements<ListBox>((DependencyObject)content.Content).Single();
+        Check(AgendaList().Items.Count == 2 && (string?)type.GetMethod("DefaultCalendarId", flags)!.Invoke(planner, null) == work.Id,
+            "an active calendar set limits Agenda rows and routes new events to its default calendar");
+        planner.UpdateLayout();
+        var eventRow = (ListBoxItem)AgendaList().ItemContainerGenerator.ContainerFromIndex(1);
+        PumpUntil(() => System.Windows.Automation.AutomationProperties.GetName(eventRow).StartsWith("Work session. ", StringComparison.Ordinal));
+        var rowTitle = FindVisualElements<TextBlock>(eventRow).Single(label => label.Text == workEvent.Title);
+        Check(SystemParameters.HighContrast || (rowTitle.Foreground is System.Windows.Media.SolidColorBrush actual &&
+            NativeTheme.Ink is System.Windows.Media.SolidColorBrush expected && actual.Color == expected.Color),
+            "Agenda titles use the readable theme ink and screen readers receive concise row names");
+        var selector = (ComboBox)type.GetField("calendarSetPicker", flags)!.GetValue(planner)!;
+        selector.SelectedIndex = 0;
+        Check(AgendaList().Items.Count == 4 && settings.Load().ActiveSetId is null, "switching to all calendars restores events and due tasks in Agenda");
+
+        type.GetMethod("MoveEvent", flags)!.Invoke(planner, [workEvent, day.AddDays(1), new TimeOnly(14, 15)]);
+        Check(store.Load().Events.Single(item => item.Id == workEvent.Id).Start == day.AddDays(1).ToDateTime(new TimeOnly(14, 15)) &&
+            store.Load().TaskList.Single() == task, "the reschedule action saves the new start and preserves task data");
+        planner.Close();
+
+        snapshot = store.Load();
+        var tasks = new TasksDialog(() => snapshot, (next, _) => { store.Save(next); snapshot = next; return true; }, () => work.Id, day, TimeZoneInfo.Utc, 45);
+        tasks.Show();
+        PumpUntil(() => tasks.IsLoaded);
+        FindElements<ListBox>(tasks).Single().SelectedIndex = 0;
+        tasks.Dispatcher.InvokeAsync(() =>
+        {
+            var editor = Application.Current.Windows.OfType<EventEditor>().Single(window => window.IsVisible);
+            FindButtons(editor).Single(button => button.IsDefault).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            if (editor.Result is null) editor.Close();
+        }, System.Windows.Threading.DispatcherPriority.Background);
+        FindButtons(tasks).Single(button => Equals(button.Content, "_Schedule time…")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var linked = store.Load().TaskList.Single();
+        Check(linked.ScheduledEventId is { } block && store.Load().Events.Any(item => item.Id == block && item.CalendarId == work.Id && item.End - item.Start == TimeSpan.FromMinutes(45)),
+            "scheduling a task uses the event editor and persists a linked time block");
+        FindButtons(tasks).Single(button => Equals(button.Content, "_Complete")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(store.Load().TaskList.Single().IsCompleted && store.Load().Events.Count == 3, "completing a task keeps its scheduled block on the calendar");
+        tasks.Close();
+    }
+
+    private static IEnumerable<T> FindVisualElements<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T element) yield return element;
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
+            foreach (var child in FindVisualElements<T>(System.Windows.Media.VisualTreeHelper.GetChild(root, index))) yield return child;
     }
     private static void PumpUntil(Func<bool> done)
     {

@@ -22,6 +22,12 @@ review the draft in the event editor. Set local event reminders in that editor.
 Reminders > Keep running after closing keeps Daymark in the notification area.
 Use File > Exit or the tray's Quit Daymark action to stop it.
 
+Open Agenda for two weeks of events and due tasks. Ctrl+Shift+T opens Tasks.
+Use Schedule time to reserve a linked block. Use Calendar sets to save groups
+of visible calendars. Drag a timed event in Day or Week to reschedule it.
+Select an event in the Schedule list and press Ctrl+M for keyboard rescheduling.
+Calendars with tasks use version 5 and require Daymark v0.13 or later.
+
 Use File > Import from another app to scan Fantastical, classic Outlook and
 Thunderbird identities and local .ics files. Review items before importing.
 Compatible appearance and default event-duration settings are optional.

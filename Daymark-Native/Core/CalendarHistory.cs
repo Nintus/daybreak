@@ -26,7 +26,8 @@ public sealed class CalendarHistory
     {
         next.Validate();
         var snapshot = Copy(next);
-        if (current.Version == snapshot.Version && current.Events.SequenceEqual(snapshot.Events) && current.CalendarList.SequenceEqual(snapshot.CalendarList)) return;
+        if (current.Version == snapshot.Version && current.Events.SequenceEqual(snapshot.Events) &&
+            current.CalendarList.SequenceEqual(snapshot.CalendarList) && current.TaskList.SequenceEqual(snapshot.TaskList)) return;
         persist(Copy(snapshot));
         undo.Add(new(current, description));
         if (undo.Count > capacity) undo.RemoveAt(0);
@@ -46,5 +47,6 @@ public sealed class CalendarHistory
         return true;
     }
 
-    private static CalendarDocument Copy(CalendarDocument document) => new(document.Version, [.. document.Events], document.Calendars is null ? null : [.. document.Calendars]);
+    private static CalendarDocument Copy(CalendarDocument document) => new(document.Version, [.. document.Events],
+        document.Calendars is null ? null : [.. document.Calendars], document.Tasks is null ? null : [.. document.Tasks]);
 }

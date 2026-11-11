@@ -18,9 +18,9 @@ foreach ($name in $binaries) {
     }
 }
 if (Test-Path -LiteralPath (Join-Path $packageRoot 'TestCalendar')) { throw 'Do not distribute QA calendar data.' }
-if (Get-ChildItem -LiteralPath $packageRoot -Recurse -Force | Where-Object { $_.Name -in @('credentials', 'imported-accounts.json', 'reminder-state.json', 'keep-in-tray.txt') -or $_.Name -like 'accounts.sqlite*' }) { throw 'Do not distribute account data, credential caches or reminder state.' }
+if (Get-ChildItem -LiteralPath $packageRoot -Recurse -Force | Where-Object { $_.Name -in @('credentials', 'imported-accounts.json', 'reminder-state.json', 'keep-in-tray.txt', 'calendar-sets.json', 'hidden-calendars.json') -or $_.Name -like 'accounts.sqlite*' }) { throw 'Do not distribute account data, credential caches or profile preferences.' }
 foreach ($required in @('Assets/Manrope-OFL.txt', 'docs/BRAND.md', 'LICENSE.txt', 'README.md', 'ROADMAP.md', 'INTEGRATION-MILESTONE.md', 'docs/ACCOUNT_SETUP.md', 'docs/PROVIDER_INTEGRATION.md', 'QA/QA-INTEGRATION-READINESS.md', 'docs/CODE_SIGNING.md',
-        'docs/PRIVACY.md', 'docs/IMPORT.md', 'docs/SIGNPATH_READINESS.md')) {
+        'docs/PRIVACY.md', 'docs/IMPORT.md', 'docs/SIGNPATH_READINESS.md', 'docs/NEAR_TERM_BACKLOG.md')) {
     if (-not (Test-Path -LiteralPath (Join-Path $packageRoot $required) -PathType Leaf)) {
         throw "Missing package documentation: $required"
     }

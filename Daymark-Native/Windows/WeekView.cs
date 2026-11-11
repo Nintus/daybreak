@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using Daymark.Core;
 
 namespace Daymark.Windows;
@@ -10,9 +12,14 @@ public sealed class WeekView : UserControl
 {
     public double VerticalOffset => timeline.VerticalOffset;
     private readonly ScrollViewer timeline;
+    private const string MoveFormat = "Daymark.TimelineMove";
+    private sealed record MoveDrag(CalendarEvent Event, double OffsetMinutes);
+    private MoveDrag? dragging;
+    private Border? activeMarker;
 
     public WeekView(CalendarDocument document, DateOnly selected, Action<DateOnly> selectDay,
-        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset, bool singleDay = false, DateOnly? today = null)
+        Action<CalendarEvent> editEvent, Action<DateOnly, TimeOnly> createEvent, double offset, bool singleDay = false, DateOnly? today = null,
+        Action<CalendarEvent, DateOnly, TimeOnly>? moveEvent = null, Func<CalendarEvent, bool>? canMove = null)
     {
         var first = singleDay ? selected : WeekLayout.StartOfWeek(selected);
         var dayCount = singleDay ? 1 : 7;
@@ -61,23 +68,32 @@ public sealed class WeekView : UserControl
             var canvas = new Canvas { Height = 1440, ClipToBounds = true,
                 Background = date == selected ? NativeTheme.Subtle : NativeTheme.Surface };
             var slots = WeekLayout.TimedDay(events[i], date);
-            void Draw()
+            var lines = new List<Line>();
+            for (var hour = 0; hour < 24; hour++)
             {
-                canvas.Children.Clear();
-                for (var hour = 0; hour < 24; hour++)
-                    canvas.Children.Add(new Line { X1 = 0, X2 = canvas.ActualWidth, Y1 = hour * 60, Y2 = hour * 60,
-                        Stroke = NativeTheme.Line, StrokeThickness = 1, IsHitTestVisible = false });
-                foreach (var slot in slots)
-                {
-                    var button = EventButton(slot.Event, editEvent);
-                    button.Width = Math.Max(1, canvas.ActualWidth / slot.ColumnCount - 5);
-                    button.Height = Math.Min(1440 - slot.StartMinute, Math.Max(20, slot.EndMinute - slot.StartMinute - 2));
-                    Canvas.SetTop(button, slot.StartMinute);
-                    Canvas.SetLeft(button, 2 + slot.Column * canvas.ActualWidth / slot.ColumnCount);
-                    canvas.Children.Add(button);
-                }
+                var line = new Line { Y1 = hour * 60, Y2 = hour * 60, Stroke = NativeTheme.Line, StrokeThickness = 1, IsHitTestVisible = false };
+                lines.Add(line);
+                canvas.Children.Add(line);
             }
-            canvas.SizeChanged += (_, _) => Draw();
+            var buttons = slots.Select(slot =>
+            {
+                var button = EventButton(slot.Event, editEvent);
+                button.Height = Math.Min(1440 - slot.StartMinute, Math.Max(20, slot.EndMinute - slot.StartMinute - 2));
+                Canvas.SetTop(button, slot.StartMinute);
+                if (moveEvent is not null && canMove?.Invoke(slot.Event) == true) EnableDrag(button, slot, date);
+                canvas.Children.Add(button);
+                return (Slot: slot, Button: button);
+            }).ToList();
+            canvas.SizeChanged += (_, _) =>
+            {
+                foreach (var line in lines) line.X2 = canvas.ActualWidth;
+                foreach (var (slot, button) in buttons)
+                {
+                    button.Width = Math.Max(1, canvas.ActualWidth / slot.ColumnCount - 5);
+                    Canvas.SetLeft(button, 2 + slot.Column * canvas.ActualWidth / slot.ColumnCount);
+                }
+            };
+            if (moveEvent is not null) EnableDrop(canvas, date, moveEvent);
             canvas.MouseLeftButtonDown += (_, e) =>
             {
                 if (e.ClickCount != 2 || e.OriginalSource != canvas) return;
@@ -87,6 +103,77 @@ public sealed class WeekView : UserControl
             Add(grid, new Border { Child = canvas, BorderBrush = NativeTheme.Line, BorderThickness = new Thickness(0, 0, 1, 0) }, i + 1);
         }
         Loaded += (_, _) => timeline.ScrollToVerticalOffset(offset);
+    }
+
+    private void EnableDrag(Button button, WeekSlot slot, DateOnly date)
+    {
+        Point? pressed = null;
+        button.PreviewMouseLeftButtonDown += (_, args) => pressed = args.GetPosition(button);
+        button.PreviewMouseLeftButtonUp += (_, _) => pressed = null;
+        button.LostMouseCapture += (_, _) => pressed = null;
+        button.PreviewMouseMove += (_, args) =>
+        {
+            if (pressed is not { } start || args.LeftButton != MouseButtonState.Pressed || dragging is not null) return;
+            var cursor = args.GetPosition(button);
+            if (Math.Abs(cursor.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(cursor.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+            pressed = null;
+            args.Handled = true;
+            var clippedMinutes = Math.Max(0, (date.ToDateTime(TimeOnly.MinValue) - slot.Event.Start).TotalMinutes);
+            var withinEvent = Math.Clamp(start.Y, 0, Math.Max(0, slot.EndMinute - slot.StartMinute));
+            dragging = new(slot.Event, clippedMinutes + withinEvent);
+            button.ReleaseMouseCapture();
+            try { DragDrop.DoDragDrop(button, new DataObject(MoveFormat, "move", false), DragDropEffects.Move); }
+            finally
+            {
+                dragging = null;
+                if (activeMarker is not null) activeMarker.Visibility = Visibility.Collapsed;
+                activeMarker = null;
+            }
+        };
+    }
+
+    private void EnableDrop(Canvas canvas, DateOnly date, Action<CalendarEvent, DateOnly, TimeOnly> moveEvent)
+    {
+        canvas.AllowDrop = true;
+        var caption = new TextBlock { Foreground = NativeTheme.OnAccent, FontSize = 11, FontWeight = FontWeights.SemiBold };
+        var marker = new Border
+        {
+            Child = caption, Background = NativeTheme.Accent, Padding = new Thickness(4, 1, 4, 1),
+            CornerRadius = new CornerRadius(3), IsHitTestVisible = false, Visibility = Visibility.Collapsed
+        };
+        Canvas.SetLeft(marker, 2);
+        Panel.SetZIndex(marker, 10);
+        canvas.Children.Add(marker);
+
+        bool Accepts(DragEventArgs args) => dragging is not null && args.Data.GetDataPresent(MoveFormat, false);
+        int Minute(DragEventArgs args) => WeekLayout.SnapMoveMinute(args.GetPosition(canvas).Y - dragging!.OffsetMinutes);
+        canvas.DragOver += (_, args) =>
+        {
+            args.Handled = true;
+            args.Effects = Accepts(args) ? DragDropEffects.Move : DragDropEffects.None;
+            if (args.Effects == DragDropEffects.None) return;
+            var y = args.GetPosition(timeline).Y;
+            if (y < 22) timeline.ScrollToVerticalOffset(timeline.VerticalOffset - 15);
+            else if (y > timeline.ActualHeight - 22) timeline.ScrollToVerticalOffset(timeline.VerticalOffset + 15);
+            var minute = Minute(args);
+            caption.Text = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(minute)).ToString("t");
+            Canvas.SetTop(marker, minute);
+            if (activeMarker != marker && activeMarker is not null) activeMarker.Visibility = Visibility.Collapsed;
+            activeMarker = marker;
+            marker.Visibility = Visibility.Visible;
+        };
+        canvas.DragLeave += (_, _) => marker.Visibility = Visibility.Collapsed;
+        canvas.Drop += (_, args) =>
+        {
+            marker.Visibility = Visibility.Collapsed;
+            args.Handled = true;
+            if (!Accepts(args)) { args.Effects = DragDropEffects.None; return; }
+            var item = dragging!.Event;
+            var time = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(Minute(args)));
+            args.Effects = DragDropEffects.Move;
+            Dispatcher.InvokeAsync(() => moveEvent(item, date, time), DispatcherPriority.Background);
+        };
     }
 
     private static Grid Columns(int dayCount)

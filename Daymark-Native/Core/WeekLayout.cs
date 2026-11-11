@@ -5,6 +5,7 @@ public sealed record WeekSlot(CalendarEvent Event, double StartMinute, double En
 public static class WeekLayout
 {
     public static DateOnly StartOfWeek(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+    public static int SnapMoveMinute(double minute) => (int)Math.Clamp(Math.Round(minute / 15, MidpointRounding.AwayFromZero) * 15, 0, 1425);
 
     // Short appointments occupy at least 20 minutes of display space so they remain selectable.
     public static IReadOnlyList<WeekSlot> TimedDay(IEnumerable<CalendarEvent> events, DateOnly day)

@@ -23,11 +23,11 @@ public sealed class EventEditor : Window
     private readonly TextBox notes = new() { MaxLength = 10000, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBlock error = new() { Foreground = NativeTheme.Error, TextWrapping = TextWrapping.Wrap };
 
-    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null, int defaultDurationMinutes = 60, CalendarEvent? preset = null)
+    public EventEditor(DateOnly selected, CalendarEvent? original, TimeOnly? initialTime = null, TimeZoneInfo? defaultZone = null, IReadOnlyList<CalendarDefinition>? calendars = null, string? defaultCalendarId = null, int defaultDurationMinutes = 60, CalendarEvent? preset = null, bool timeBlock = false)
     {
         var seed = original ?? preset;
         NativeTheme.Attach(this);
-        Title = original is null ? "New event" : "Edit event";
+        Title = timeBlock ? original is null ? "Schedule task" : "Edit task time block" : original is null ? "New event" : "Edit event";
         Width = 560; Height = Math.Min(860, SystemParameters.WorkArea.Height - 32); MinWidth = 500;
         MinHeight = Math.Min(480, Height); MaxHeight = SystemParameters.WorkArea.Height;
         ResizeMode = ResizeMode.CanResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -68,6 +68,7 @@ public sealed class EventEditor : Window
         DateAndTime("Start _date", startDate, "Start ti_me · 24-hour", startTime);
         DateAndTime("End da_te", endDate, "End tim_e · 24-hour", endTime);
         allDay.Margin = new Thickness(0, 14, 0, 0); panel.Children.Add(allDay);
+        allDay.IsEnabled = !timeBlock;
         allDay.Checked += (_, _) => { startTime.IsEnabled = endTime.IsEnabled = false; if (endDate.SelectedDate <= startDate.SelectedDate) endDate.SelectedDate = startDate.SelectedDate?.AddDays(1); };
         allDay.Unchecked += (_, _) => startTime.IsEnabled = endTime.IsEnabled = true;
         var allDayHelp = new TextBlock { Text = "End date is exclusive: choose the day after the last included day.", FontSize = 12,
@@ -79,6 +80,7 @@ public sealed class EventEditor : Window
         panel.Children.Add(new TextBlock { Text = "Floating events keep the entered clock time in every display zone.",
             FontSize = 12, Foreground = NativeTheme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
         var recurrence = new RecurrenceFields(seed?.Recurrence, seed?.Start ?? selected.ToDateTime(TimeOnly.MinValue), original?.SeriesId is not null);
+        if (timeBlock) recurrence.Visibility = Visibility.Collapsed;
         panel.Children.Add(recurrence);
         startDate.SelectedDateChanged += (_, _) => { if (startDate.SelectedDate is { } repeatStart) recurrence.UpdateStart(repeatStart); };
         reminder.ItemsSource = ReminderChoice.Options(seed?.ReminderMinutes);
@@ -152,7 +154,7 @@ public sealed class EventEditor : Window
                 var item = new CalendarEvent(seed?.Id ?? Guid.NewGuid(), title.Text.Trim(), fromClock,
                     toClock, allDay.IsChecked == true, location.Text.Trim(), notes.Text,
                     CalendarId: (string?)calendar.SelectedValue ?? calendars[0].Id,
-                    Recurrence: original?.SeriesId is null ? recurrence.Read(fromClock) : null,
+                    Recurrence: !timeBlock && original?.SeriesId is null ? recurrence.Read(fromClock) : null,
                     SeriesId: original?.SeriesId, OriginalStart: original?.OriginalStart,
                     ReminderMinutes: (reminder.SelectedItem as ReminderChoice)?.Minutes);
                 if (!item.AllDay && zone.SelectedItem is not ZoneChoice) throw new InvalidOperationException("Choose an event time zone or Floating.");

@@ -52,20 +52,23 @@ public sealed record CalendarDefinition(string Id, string Name, string Color = "
     }
 }
 
-public sealed record CalendarDocument(int Version, List<CalendarEvent> Events, List<CalendarDefinition>? Calendars = null)
+public sealed record CalendarDocument(int Version, List<CalendarEvent> Events, List<CalendarDefinition>? Calendars = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<CalendarTask>? Tasks = null)
 {
     public static CalendarDocument Empty() => new(3, [], [CalendarDefinition.Personal]);
     [JsonIgnore] public IReadOnlyList<CalendarDefinition> CalendarList => Calendars ?? [CalendarDefinition.Personal];
+    [JsonIgnore] public IReadOnlyList<CalendarTask> TaskList => Tasks ?? [];
     public CalendarDocument Upgrade() => this with
     {
-        // Older previews must reject a file whose reminders they would discard on save.
-        Version = Events.Any(item => item.ReminderMinutes.HasValue) ? 4 : 3,
-        Calendars = [.. CalendarList]
+        // Older previews must reject a file whose data they would discard on save.
+        Version = TaskList.Count > 0 ? 5 : Events.Any(item => item.ReminderMinutes.HasValue) ? 4 : 3,
+        Calendars = [.. CalendarList],
+        Tasks = TaskList.Count == 0 ? null : [.. TaskList]
     };
     public CalendarDocument InZone(TimeZoneInfo zone) => this with { Events = Events.Select(e => CalendarTime.InZone(e, zone)).ToList() };
     public void Validate()
     {
-        if (Version is not (1 or 2 or 3 or 4) || Events is null || Events.Count > 100000)
+        if (Version is < 1 or > 5 || Events is null || Events.Count > 100000)
             throw new InvalidDataException("This is not a supported Daymark native backup.");
         if (CalendarList.Count is < 1 or > 100) throw new InvalidDataException("Keep between 1 and 100 calendars.");
         var calendarIds = new HashSet<string>(StringComparer.Ordinal);
@@ -94,6 +97,20 @@ public sealed record CalendarDocument(int Version, List<CalendarEvent> Events, L
                 exception.OriginalStart < master.Start || !occurrenceKeys.Add((master.Id, exception.OriginalStart!.Value)) ||
                 !Recurrence.IsScheduled(master, exception.OriginalStart.Value))
                 throw new InvalidDataException("Invalid or duplicate recurring exception.");
+        }
+
+        if (TaskList.Count > 10_000) throw new InvalidDataException("Keep at most 10,000 tasks.");
+        if (TaskList.Count == 0) return;
+        var taskIds = new HashSet<Guid>();
+        var linkedEvents = new HashSet<Guid>();
+        var eligibleBlocks = Events.Where(item => !item.AllDay && item.SeriesId is null && item.Recurrence is null).Select(item => item.Id).ToHashSet();
+        foreach (var task in TaskList)
+        {
+            if (task is null) throw new InvalidDataException("Invalid task in backup.");
+            task.Validate();
+            if (!taskIds.Add(task.Id)) throw new InvalidDataException("Duplicate task ID in backup.");
+            if (task.ScheduledEventId is { } block && (!eligibleBlocks.Contains(block) || !linkedEvents.Add(block)))
+                throw new InvalidDataException("Each task needs its own timed event for its time block. Unlink the task before changing the event to all-day or repeating.");
         }
     }
     public CalendarDocument WithEvents(IEnumerable<CalendarEvent> events) => this with { Version = 3, Events = events.ToList(), Calendars = [.. CalendarList] };
