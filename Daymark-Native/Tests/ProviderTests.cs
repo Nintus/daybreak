@@ -99,6 +99,17 @@ internal static class ProviderTests
             var reloaded = new ProviderCache(path); var saved = reloaded.Read().Single();
             check(saved.Events.Single() == mapped.Event && saved.StartUtc == start && saved.EndUtc == end && reloaded.Accounts().Single().Account.Selection.Single() == "c1");
         });
+        test("coverage distinguishes an empty download from an unselected or undiscovered cache", () =>
+        {
+            var timestamp = new DateTime(2026, 11, 11, 19, 40, 0, DateTimeKind.Utc).AddTicks(9);
+            cache.Commit(account, [calendar], [Snapshot() with { Events = [], RetrievedUtc = timestamp }]);
+            var reopened = new ProviderCache(path);
+            check(reopened.ReadCoverage().Single() == new CachedCalendarCoverage(account.Id, calendar.Id, start, end, timestamp, 0));
+            check(reopened.ReadCoverage().Single().RetrievedUtc.Kind == DateTimeKind.Utc);
+            cache.Commit(account with { SelectedCalendars = [] }, [calendar], []);
+            check(reopened.ReadCoverage().Count == 0 && reopened.Read().Count == 0);
+            cache.Commit(account, [calendar], [Snapshot()]);
+        });
         test("cache replacement removes provider-deleted instances only after complete snapshot", () =>
         {
             reject(() => cache.Commit(account, [calendar], [])); check(cache.Read().Single().Events.Count == 1);
@@ -115,14 +126,16 @@ internal static class ProviderTests
             using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString()); db.Open();
             using var trigger = db.CreateCommand(); trigger.CommandText = "CREATE TRIGGER fixture_failure BEFORE INSERT ON snapshots WHEN NEW.calendar='c2' BEGIN SELECT RAISE(ABORT,'fixture failure'); END"; trigger.ExecuteNonQuery();
             var expanded = account with { SelectedCalendars = ["c1", "c2"] }; var second = calendar with { Id = "c2" };
-            try { cache.Commit(expanded, [calendar, second], [Snapshot("New title") with { Account = expanded }, new(expanded, second, start, end, [], DateTime.UtcNow)]); throw new Exception("Expected transaction failure"); }
+            var previousCoverage = cache.ReadCoverage().Single();
+            try { cache.Commit(expanded, [calendar, second], [Snapshot("New title") with { Account = expanded, RetrievedUtc = previousCoverage.RetrievedUtc.AddMinutes(1) }, new(expanded, second, start, end, [], DateTime.UtcNow)]); throw new Exception("Expected transaction failure"); }
             catch (SqliteException) { }
             check(cache.Read().Single().Events.Single().Title == "Planning" && cache.Accounts().Single().Account.Selection.Length == 1);
+            check(cache.ReadCoverage().Single() == previousCoverage);
         });
         test("disconnect forgets cache without modifying other accounts", () =>
         {
             var other = account with { Id = Guid.NewGuid(), SelectedCalendars = [] }; cache.SaveDiscovery(other, [calendar]);
-            cache.Forget(account.Id); check(cache.Read().Count == 0 && cache.Accounts().Single().Account.Id == other.Id);
+            cache.Forget(account.Id); check(cache.Read().Count == 0 && cache.ReadCoverage().Count == 0 && cache.Accounts().Single().Account.Id == other.Id);
         });
         SqliteConnection.ClearAllPools();
     }

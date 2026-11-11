@@ -26,7 +26,9 @@ Daymark uses MSAL's public-client flow with the system browser and a protected t
 
 ## Refresh, offline use and disconnect
 
-- Sign-in and downloads run away from the WPF UI thread. An operation can be cancelled and times out after five minutes. No periodic polling, background service, webhooks or startup sign-in is installed.
+- Sign-in and downloads run away from the WPF UI thread. Refresh shows the current calendar and how many are selected. Cancel during sign-in or download, before saving starts. Sign-in and download have a five-minute timeout. Refresh starts when you request it.
+- The account manager shows each calendar's last successful download time in your local time, the downloaded date range in UTC and its cached event count. An empty successful download shows zero events. Calendars without a download have a separate status.
+- A failed refresh shows which account needs attention and the retry time if the provider requests a wait. Daymark keeps the last complete download and preserves your checkbox changes while this window is open so you can retry.
 - A refresh downloads complete provider-expanded instances for every selected calendar. Calendar pages and account selection commit together only after the whole refresh succeeds. Errors keep the previous cache. The first implementation deliberately uses full bounded snapshots instead of pretending they are incremental sync checkpoints.
 - Google and Microsoft recurring instances, moved instances and all-day events are displayed from provider responses. Raw provider payloads remain in the cache; they are not converted into editable local recurring series. Unknown timezone data that cannot be represented safely fails the refresh. Timed events with unknown source zones can display by their authoritative UTC instant.
 - **Disconnect** clears saved credentials and downloaded events for that connection from this PC. It does not delete server events or revoke the application's grant on the provider website. Revoke access there if desired. If consent expires, disconnect/reconnect; the current preview does not silently open sign-in while refreshing.

@@ -14,6 +14,8 @@ public sealed record CalendarSnapshot(ConnectedAccount Account, RemoteCalendar C
     DateTime EndUtc, List<CachedEvent> Events, DateTime RetrievedUtc);
 public sealed record CachedCalendar(CalendarDefinition Calendar, List<CalendarEvent> Events, DateTime StartUtc,
     DateTime EndUtc, DateTime RetrievedUtc);
+public sealed record CachedCalendarCoverage(Guid AccountId, string CalendarId, DateTime StartUtc, DateTime EndUtc,
+    DateTime RetrievedUtc, int EventCount);
 
 public static class ProviderIdentity
 {
@@ -29,7 +31,7 @@ public sealed class ProviderRequestException(int status, TimeSpan? retryAfter = 
         401 => "Sign in again to refresh this account.",
         403 => "The provider denied calendar access. Check consent and account permissions.",
         429 => "The provider is limiting requests. Wait before refreshing again.",
-        _ => $"The calendar provider returned HTTP {status}. Your previous calendar cache was retained."
+        _ => $"The calendar provider returned HTTP {status}."
     })
 {
     public int Status { get; } = status;

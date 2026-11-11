@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using Daymark.Core;
 using Daymark.Windows;
 using Daymark.Migration;
+using Daymark.Providers;
 
 internal static class Program
 {
@@ -82,8 +83,11 @@ internal static class Program
             System.Windows.Threading.Dispatcher.PushFrame(frame);
             Check(NativeMotion.ActiveCount == 0 && !motionSurface.HasAnimatedProperties && motionSurface.Opacity == .75,
                 "completed transitions release clocks and return to the element's base opacity");
+            var unloaded = false;
+            motionSurface.Unloaded += (_, _) => unloaded = true;
             NativeMotion.Reveal(motionSurface); motionWindow.Close();
-            Check(NativeMotion.ActiveCount == 0, "closing an animating surface releases its motion state");
+            PumpUntil(() => unloaded);
+            Check(NativeMotion.ActiveCount == 0 && !motionSurface.HasAnimatedProperties, "closing an animating surface releases its motion state");
             Check(new System.Windows.Media.Typeface(HorizonBrand.Wordmark, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal).TryGetGlyphTypeface(out var brandFont) && brandFont.FontUri.ToString().Contains("manrope", StringComparison.OrdinalIgnoreCase), "bundled Horizon wordmark font resolves");
             Check(((System.Windows.Media.Imaging.BitmapFrame)HorizonBrand.Icon).PixelWidth > 0 && HorizonBrand.Logo(40) is Viewbox, "Horizon window icon and scalable mark load from app resources");
             var auth = new AccountAuthorization(folder);
@@ -125,10 +129,12 @@ internal static class Program
                 PumpUntil(Idle);
                 Check(importSaves == 1 && importedDocument.Events.Count == 1, "repeating import does not duplicate events or re-save the calendar");
             }
-            var migratedAccounts = new AccountsDialog(new AccountService(migrationFolder));
-            typeof(AccountsDialog).GetMethod("Render", flags | BindingFlags.DeclaredOnly)!.Invoke(migratedAccounts, [Array.Empty<(Daymark.Providers.ConnectedAccount, List<RemoteCalendar>)>()]);
+            var migrationAccountsService = new AccountService(migrationFolder);
+            var migratedAccounts = new AccountsDialog(migrationAccountsService);
+            migratedAccounts.Render(migrationAccountsService.Overview());
             var accountRows = (StackPanel)typeof(AccountsDialog).GetField("rows", flags)!.GetValue(migratedAccounts)!;
             Check(accountRows.Children.OfType<Border>().Count() == 1, "imported account appears in the account manager before sign-in"); migratedAccounts.Close();
+            CheckAccountCoverage(folder, flags);
             using (var editor = new WindowLifetime(new EventEditor(new(2026, 11, 4), null, new(9, 0), defaultDurationMinutes: new EventDefaults(migrationFolder).Minutes)))
             {
                 var endField = (TextBox)typeof(EventEditor).GetField("endTime", flags)!.GetValue(editor.Window)!;
@@ -249,6 +255,45 @@ internal static class Program
         if (root is T element) yield return element;
         for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
             foreach (var child in FindVisualElements<T>(System.Windows.Media.VisualTreeHelper.GetChild(root, index))) yield return child;
+    }
+    private static void CheckAccountCoverage(string folder, BindingFlags flags)
+    {
+        var accountFolder = Path.Combine(folder, "coverage");
+        var cache = new ProviderCache(Path.Combine(accountFolder, "accounts.sqlite"));
+        var downloaded = new RemoteCalendar("work", "Work calendar", true);
+        var newCalendar = new RemoteCalendar("extra", "Extra calendar", false);
+        var account = new ConnectedAccount(Guid.NewGuid(), CalendarProviderKind.Google, "Coverage fixture", "fixture-client",
+            SelectedCalendars: [downloaded.Id]);
+        var second = new ConnectedAccount(Guid.NewGuid(), CalendarProviderKind.Microsoft, "Second fixture", "fixture-client");
+        var timestamp = new DateTime(2026, 11, 11, 15, 42, 0, DateTimeKind.Utc);
+        cache.Commit(account, [downloaded, newCalendar], [new(account, downloaded, timestamp.Date, timestamp.Date.AddDays(7), [], timestamp)]);
+        cache.SaveDiscovery(second, []);
+        var service = new AccountService(accountFolder);
+        var dialog = new AccountsDialog(service);
+        using var lifetime = new WindowLifetime(dialog);
+        var rows = (StackPanel)typeof(AccountsDialog).GetField("rows", flags)!.GetValue(dialog)!;
+        StackPanel Section(int index) => (StackPanel)rows.Children.OfType<Border>().ElementAt(index).Child;
+        dialog.Render(service.Overview());
+        var toggles = Section(0).Children.OfType<CheckBox>().ToArray();
+        var details = System.Windows.Automation.AutomationProperties.GetHelpText(toggles[0]);
+        Check(toggles[0].IsChecked == true && details.Contains("0 events cached") && details.Contains("UTC")
+            && System.Windows.Automation.AutomationProperties.GetHelpText(toggles[1]) == "No offline download",
+            "account manager exposes dated coverage for empty downloads and identifies calendars without downloads");
+        toggles[1].IsChecked = true;
+        toggles[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        try
+        {
+            service.RefreshAsync(account, Enumerable.Range(0, 51).Select(i => i.ToString()).ToArray(),
+                CancellationToken.None, new Progress<AccountRefreshProgress>()).GetAwaiter().GetResult();
+            throw new Exception("Expected the invalid selection to fail.");
+        }
+        catch (InvalidDataException) { }
+        dialog.Render(service.Overview());
+        Check(Section(0).Children.OfType<CheckBox>().Last().IsChecked == true
+            && Section(0).Children.OfType<TextBlock>().Any(t => t.Text.Contains("Refresh did not finish") && t.Text.Contains("Previously downloaded"))
+            && !Section(1).Children.OfType<TextBlock>().Any(t => t.Text.Contains("Refresh did not finish"))
+            && cache.ReadCoverage().Single().RetrievedUtc == timestamp,
+            "a failed refresh keeps prior coverage and pending choices, with feedback on the affected account only");
     }
     private static void PumpUntil(Func<bool> done)
     {
