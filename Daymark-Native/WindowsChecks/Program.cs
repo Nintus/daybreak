@@ -210,9 +210,10 @@ internal static class Program
             "an active calendar set limits Agenda rows and routes new events to its default calendar");
         planner.UpdateLayout();
         var eventRow = (ListBoxItem)AgendaList().ItemContainerGenerator.ContainerFromIndex(1);
+        PumpUntil(() => System.Windows.Automation.AutomationProperties.GetName(eventRow).StartsWith("Work session. ", StringComparison.Ordinal));
         var rowTitle = FindVisualElements<TextBlock>(eventRow).Single(label => label.Text == workEvent.Title);
-        Check((SystemParameters.HighContrast || ReferenceEquals(rowTitle.Foreground, NativeTheme.Ink)) &&
-            System.Windows.Automation.AutomationProperties.GetName(eventRow).StartsWith("Work session. ", StringComparison.Ordinal),
+        Check(SystemParameters.HighContrast || (rowTitle.Foreground is System.Windows.Media.SolidColorBrush actual &&
+            NativeTheme.Ink is System.Windows.Media.SolidColorBrush expected && actual.Color == expected.Color),
             "Agenda titles use the readable theme ink and screen readers receive concise row names");
         var selector = (ComboBox)type.GetField("calendarSetPicker", flags)!.GetValue(planner)!;
         selector.SelectedIndex = 0;

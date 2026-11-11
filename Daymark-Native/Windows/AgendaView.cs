@@ -11,6 +11,7 @@ internal sealed class AgendaView : UserControl
     private sealed record Row(string Title, string Detail, DateOnly Date, CalendarEvent? Event = null, CalendarTask? Task = null)
     {
         public bool IsHeading => Event is null && Task is null;
+        public string AccessibleName => $"{Title}. {Detail}";
     }
 
     public AgendaView(IReadOnlyList<AgendaDay> days, Action<DateOnly> goToDay, Action<CalendarEvent> openEvent,

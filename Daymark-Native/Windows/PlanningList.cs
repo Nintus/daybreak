@@ -42,10 +42,7 @@ internal static class PlanningList
         }
         list.ItemTemplate = template;
         var itemStyle = new Style(typeof(ListBoxItem), NativeTheme.Style("AgendaItem"));
-        itemStyle.Setters.Add(new Setter(AutomationProperties.NameProperty, new MultiBinding
-        {
-            StringFormat = "{0}. {1}", Bindings = { new Binding("Title"), new Binding("Detail") }
-        }));
+        itemStyle.Setters.Add(new Setter(AutomationProperties.NameProperty, new Binding("AccessibleName")));
         list.ItemContainerStyle = itemStyle;
         return list;
     }

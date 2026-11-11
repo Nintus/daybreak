@@ -9,7 +9,10 @@ namespace Daymark.Windows;
 internal sealed class TasksDialog : Window
 {
     private sealed record FilterChoice(TaskFilter Filter, string Label);
-    private sealed record Row(CalendarTask Task, string Title, string Detail);
+    private sealed record Row(CalendarTask Task, string Title, string Detail)
+    {
+        public string AccessibleName => $"{Title}. {Detail}";
+    }
     private readonly Func<CalendarDocument> current;
     private readonly Func<CalendarDocument, string, bool> save;
     private readonly Func<string> defaultCalendar;
