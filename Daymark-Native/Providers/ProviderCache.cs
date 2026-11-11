@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Daymark.Core;
 using Microsoft.Data.Sqlite;
@@ -8,6 +9,11 @@ namespace Daymark.Providers;
 // All calendars in one refresh, their coverage, and account selection commit together.
 public sealed class ProviderCache
 {
+    private const string SelectedSnapshots = """
+        FROM accounts a
+        JOIN json_each(a.data, '$.SelectedCalendars') c ON c.type = 'text'
+        JOIN snapshots s ON s.account = a.id AND s.calendar = c.value
+        """;
     private readonly string connectionString;
     public ProviderCache(string path)
     {
@@ -81,18 +87,34 @@ public sealed class ProviderCache
     public IReadOnlyList<CachedCalendar> Read()
     {
         using var db = Open(); using var command = db.CreateCommand();
-        command.CommandText = "SELECT a.data,s.data FROM accounts a JOIN snapshots s ON s.account=a.id";
+        command.CommandText = "SELECT a.data,s.data " + SelectedSnapshots;
         using var reader = command.ExecuteReader(); var result = new List<CachedCalendar>();
         while (reader.Read())
         {
             var account = JsonSerializer.Deserialize<ConnectedAccount>(reader.GetString(0))!;
             var snapshot = JsonSerializer.Deserialize<CalendarSnapshot>(reader.GetString(1))!;
-            if (!account.Selection.Contains(snapshot.Calendar.Id, StringComparer.Ordinal)) continue;
             var name = $"{account.Label} · {snapshot.Calendar.Name}"; if (name.Length > 80) name = name[..80];
             result.Add(new(new(ProviderIdentity.Calendar(account, snapshot.Calendar.Id), name, account.Provider == CalendarProviderKind.Google ? "Teal" : "Violet"),
                 snapshot.Events.Select(e => e.Event).ToList(), snapshot.StartUtc, snapshot.EndUtc, snapshot.RetrievedUtc));
         }
         return result;
+    }
+    public IReadOnlyList<CachedCalendarCoverage> ReadCoverage()
+    {
+        using var db = Open();
+        using var command = db.CreateCommand();
+        command.CommandText = """
+            SELECT s.account, s.calendar, json_extract(s.data, '$.StartUtc'), json_extract(s.data, '$.EndUtc'),
+                json_extract(s.data, '$.RetrievedUtc'), json_array_length(s.data, '$.Events')
+            """ + "\n" + SelectedSnapshots;
+        using var reader = command.ExecuteReader();
+        var result = new List<CachedCalendarCoverage>();
+        while (reader.Read())
+            result.Add(new(Guid.ParseExact(reader.GetString(0), "N"), reader.GetString(1),
+                ReadDate(2), ReadDate(3), ReadDate(4), reader.GetInt32(5)));
+        return result;
+
+        DateTime ReadDate(int column) => DateTime.Parse(reader.GetString(column), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
     public void Forget(Guid accountId)
     {

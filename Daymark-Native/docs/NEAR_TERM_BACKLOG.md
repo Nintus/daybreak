@@ -25,8 +25,8 @@ This backlog uses three priorities. **P0** unblocks a dependable preview or safe
 
 - [ ] **9. Live Google sign-in QA.** Connect a disposable account, select calendars, refresh, restart, and revoke consent. Record exactly what a user sees at each step.
 - [ ] **10. Live Microsoft sign-in QA.** Test a personal Outlook account and a work or school account where policy permits. Record how administrative consent, multiple accounts, and expired sessions recover.
-- [ ] **11. Account and calendar status.** Show last successful refresh, coverage dates, errors, and the next useful action per account. Keep cached events visible through a failed refresh.
-- [ ] **12. Targeted refresh.** Let users refresh one account or selected calendars, cancel work, and see progress. A cancellation keeps the previous complete cache visible.
+- [x] **11. Account and calendar status.** Show each calendar's last successful refresh, coverage dates and cached event count. Show current-session errors and retry times on the affected account and keep the previous cache visible.
+- [x] **12. Targeted refresh.** Refresh one account's chosen calendars with per-calendar progress and cancellation before saving. A cancellation keeps the previous complete cache visible.
 - [ ] **13. Incremental reads.** Persist provider cursors transactionally. A cursor reset, failed page, or disconnected account cannot turn missing pages into deleted events.
 - [ ] **14. Optional background refresh.** Respect metered connections, sleep and battery. Use bounded retries and provider backoff. Let users choose manual mode and inspect what refreshed.
 - [ ] **15. Persistent write queue.** Journal each authorized create, edit and delete before sending it. Restart midway through a batch and prove the queue can resume without losing work.
